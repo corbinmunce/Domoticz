@@ -425,6 +425,8 @@ define(['app'], function (app) {
 						return;
 					}
 					Mode1 = pollinterval;
+					if (text.indexOf("Modules with LAN") >= 0)					
+						Mode2 = $("#hardwarecontent #divmodeldenkovidevices #combomodeldenkovidevices option:selected").val();
 				}
 				else if (text.indexOf("Relay-Net") >= 0) {
 					Mode1 = $('#hardwarecontent #hardwareparamsrelaynet #relaynetpollinputs').prop("checked") ? 1 : 0;
@@ -589,6 +591,13 @@ define(['app'], function (app) {
 					return;
 				}
 				Mode1 = pollinterval;
+				Mode2 = 0;
+				if($("#hardwarecontent #hardwareparamsphilipshue #addgroups").prop('checked')) {
+					Mode2 |= 1;
+				}
+				if($("#hardwarecontent #hardwareparamsphilipshue #addscenes").prop('checked')) {
+					Mode2 |= 2;
+				}
 				$.ajax({
 					url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
 					"&address=" + address +
@@ -962,6 +971,7 @@ define(['app'], function (app) {
 					ShowNotify($.t('Please enter your Goodwe username!'), 2500, true);
 					return;
 				}
+				Mode1 = $("#hardwarecontent #divgoodweweb #comboserverselect").val();
 
 				$.ajax({
 					url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
@@ -1503,6 +1513,8 @@ define(['app'], function (app) {
 						return;
 					}
 					Mode1 = pollinterval;
+					if (text.indexOf("Modules with LAN") >= 0)
+						Mode2 = $("#hardwarecontent #divmodeldenkovidevices #combomodeldenkovidevices option:selected").val();
 				}
 				else if (text.indexOf("eHouse") >= 0) {
 					var pollinterval = $("#hardwarecontent #hardwareparamspollinterval #pollinterval").val();
@@ -1918,11 +1930,13 @@ define(['app'], function (app) {
 					ShowNotify($.t('Please enter your Goodwe username!'), 2500, true);
 					return;
 				}
+				Mode1 = $("#hardwarecontent #divgoodweweb #comboserverselect").val();
 
 				$.ajax({
 					url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype +
 					"&username=" + encodeURIComponent(username) +
-					"&name=" + encodeURIComponent(name) + "&enabled=" + bEnabled + "&datatimeout=" + datatimeout,
+					"&name=" + encodeURIComponent(name) + "&enabled=" + bEnabled + "&datatimeout=" + datatimeout +
+					"&Mode1=" + Mode1,
 					async: false,
 					dataType: 'json',
 					success: function (data) {
@@ -2022,7 +2036,7 @@ define(['app'], function (app) {
 			$('#hardwarecontent #ADLightwaveRF').prop('checked', ((Mode4 & 0x02) != 0));
 			$('#hardwarecontent #HidekiUPM').prop('checked', ((Mode4 & 0x04) != 0));
 			$('#hardwarecontent #LaCrosse').prop('checked', ((Mode4 & 0x08) != 0));
-			$('#hardwarecontent #FS20').prop('checked', ((Mode4 & 0x10) != 0));
+			$('#hardwarecontent #Legrand').prop('checked', ((Mode4 & 0x10) != 0));
 			$('#hardwarecontent #ProGuard').prop('checked', ((Mode4 & 0x20) != 0));
 			$('#hardwarecontent #BlindT0').prop('checked', ((Mode4 & 0x40) != 0));
 			$('#hardwarecontent #BlindT1T2T3T4').prop('checked', ((Mode4 & 0x80) != 0));
@@ -2051,7 +2065,7 @@ define(['app'], function (app) {
 				$('#hardwarecontent #ADLightwaveRF').prop('checked', false);
 				$('#hardwarecontent #HidekiUPM').prop('checked', true);
 				$('#hardwarecontent #LaCrosse').prop('checked', true);
-				$('#hardwarecontent #FS20').prop('checked', false);
+				$('#hardwarecontent #Legrand').prop('checked', false);
 				$('#hardwarecontent #ProGuard').prop('checked', false);
 				$('#hardwarecontent #BlindT0').prop('checked', false);
 				$('#hardwarecontent #BlindT1T2T3T4').prop('checked', false);
@@ -2089,7 +2103,7 @@ define(['app'], function (app) {
 				e.preventDefault();
 				$('#hardwarecontent #LaCrosse').prop('checked', false);
 				$('#hardwarecontent #Alecto').prop('checked', false);
-				$('#hardwarecontent #FS20').prop('checked', false);
+				$('#hardwarecontent #Legrand').prop('checked', false);
 				$('#hardwarecontent #ProGuard').prop('checked', false);
 				$('#hardwarecontent #VionicPowerCode').prop('checked', false);
 				$('#hardwarecontent #Hideki').prop('checked', false);
@@ -4508,6 +4522,15 @@ define(['app'], function (app) {
 				SwitchLayout('Dashboard');
 			});
 		}
+		SetRFXCOMMode868 = function () {
+			HideNotify();
+			ShowNotify($.t('This should (for now) be set via the RFXmngr application!'), 2500, true);
+/*
+			$.post("setrfxcommode.webem", $("#hardwarecontent #settings").serialize(), function (data) {
+				SwitchLayout('Dashboard');
+			});
+*/			
+		}
 
 		SetRego6XXType = function () {
 			$.post("setrego6xxtype.webem", $("#hardwarecontent #regotype").serialize(), function (data) {
@@ -5376,7 +5399,9 @@ define(['app'], function (app) {
 								$("#hardwarecontent #hardwareparamsrelaynet #relaynetrelaycount").val(data["Mode5"]);
 							}
 							else if (data["Type"].indexOf("Denkovi") >= 0) {
-								$("#hardwarecontent #hardwareparamspollinterval #pollinterval").val(data["Mode1"]);
+								$("#hardwarecontent #hardwareparamspollinterval #pollinterval").val(data["Mode1"]);		
+								if (data["Type"].indexOf("Modules with LAN") >= 0)								
+									$("#hardwarecontent #divmodeldenkovidevices #combomodeldenkovidevices").val(data["Mode2"]);
 							}
 						}
 						else if ((data["Type"].indexOf("Underground") >= 0) || (data["Type"].indexOf("DarkSky") >= 0) || (data["Type"].indexOf("AccuWeather") >= 0) || (data["Type"].indexOf("Open Weather Map") >= 0)) {
@@ -5449,6 +5474,8 @@ define(['app'], function (app) {
 							$("#hardwarecontent #hardwareparamsremote #tcpport").val(data["Port"]);
 							$("#hardwarecontent #hardwareparamsphilipshue #username").val(data["Username"]);
 							$("#hardwarecontent #hardwareparamsphilipshue #pollinterval").val(data["Mode1"]);
+							$("#hardwarecontent #hardwareparamsphilipshue #addgroups").prop('checked', (data["Mode2"]&1));
+							$("#hardwarecontent #hardwareparamsphilipshue #addscenes").prop('checked', (data["Mode2"]&2));
 						}
 						else if (data["Type"].indexOf("Winddelen") >= 0) {
 							$("#hardwarecontent #hardwareparamswinddelen #combomillselect").val(data["Mode1"]);
@@ -5459,6 +5486,7 @@ define(['app'], function (app) {
 							$("#hardwarecontent #hardwareparamshoneywell #hwRefreshToken").val(data["Password"]);
 						}
 						else if (data["Type"].indexOf("Goodwe solar inverter via Web") >= 0) {
+							$("#hardwarecontent #hardwareparamsgoodweweb #comboserverselect").val(data["Mode1"]);
 							$("#hardwarecontent #hardwareparamsgoodweweb #username").val(data["Username"]);
 						}
 						if (data["Type"].indexOf("MySensors Gateway with MQTT") >= 0) {
@@ -5657,6 +5685,7 @@ define(['app'], function (app) {
 			$("#hardwarecontent #ehouse").hide();
 			$("#hardwarecontent #divgpio").hide();
 			$("#hardwarecontent #divsysfsgpio").hide();
+			$("#hardwarecontent #divmodeldenkovidevices").hide();
 
 			// Handle plugins 1st because all the text indexof logic below will have unpredictable impacts for plugins
 			// Python Plugins have the plugin name, not the hardware type id, as the value
@@ -5809,6 +5838,8 @@ define(['app'], function (app) {
 				else if (text.indexOf("Denkovi") >= 0) {
 					$("#hardwarecontent #divpollinterval").show();
 					$("#hardwarecontent #hardwareparamspollinterval #pollinterval").val(10000);
+					if (text.indexOf("Modules with LAN") >= 0)
+						$("#hardwarecontent #divmodeldenkovidevices").show();
 				}
 			}
 			else if (text.indexOf("Domoticz") >= 0) {
@@ -6159,7 +6190,12 @@ define(['app'], function (app) {
 											});
 											PluginParams += '</select></td>';
 										} else {
-											PluginParams += '<td><input type="text" id="' + param.field + '" style="width:' + param.width + '; padding: .2em;" class="text ui-widget-content ui-corner-all" '
+											PluginParams += '<td>'
+											if ((typeof (param.password) != "undefined") && (param.password == "true"))
+												PluginParams += '<input type="password" ';
+											else
+												PluginParams += '<input type="text" ';
+											PluginParams += 'id="' + param.field + '" style="width:' + param.width + '; padding: .2em;" class="text ui-widget-content ui-corner-all" '
 											if (typeof (param.default) != "undefined") PluginParams += 'value="' + param.default + '"';
 											if ((typeof (param.required) != "undefined") && (param.required == "true")) PluginParams += ' required';
 											PluginParams += ' /></td>';

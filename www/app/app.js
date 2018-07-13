@@ -249,10 +249,83 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
 		}
 	}]);
 
-	app.factory('deviceApi', function($q, domoticzApi, dzTimeAndSun) {
+	app.factory('utils', function () {
+		return {
+            confirmDecorator: confirmDecorator
+		};
+
+		function confirmDecorator(fn, message) {
+			return function() {
+			    var args = arguments;
+
+                bootbox.confirm(message, function(result) {
+                    if (result) {
+                        fn.apply(null, args);
+                    }
+                });
+			};
+		}
+    });
+
+	app.factory('Device', function () {
+        return function Device(rawData) {
+        	var device = Object.assign({}, rawData);
+
+            device.isDimmer = function() {
+                return ['Dimmer', 'Blinds Percentage', 'Blinds Percentage Inverted', 'TPI'].includes(this.SwitchType);
+            };
+
+            device.isSelector = function() {
+                return this.SwitchType === "Selector";
+            };
+
+            device.isLED = function() {
+                return (this.SubType.indexOf("RGB") >= 0 || this.SubType.indexOf("WW") >= 0);
+            };
+
+            device.getLevels = function() {
+                return this.LevelNames ? b64DecodeUnicode(this.LevelNames).split('|') : [];
+            };
+
+            device.getLevelActions = function() {
+                return this.LevelActions ? b64DecodeUnicode(this.LevelActions).split('|') : [];
+			};
+
+            device.getSelectorLevelOptions = function () {
+                return this.getLevels()
+                    .slice(1)
+                    .map(function (levelName, index) {
+                        return {
+                            label: levelName,
+                            value: (index + 1) * 10
+                        }
+                    });
+            };
+
+            device.getDimmerLevelOptions = function (step) {
+                var options = [];
+                var step = step || 5;
+
+                for (var i = step; i <= 100; i+=step) {
+                    options.push({
+                        label: i + '%',
+                        value: i
+                    });
+                }
+
+                return options;
+            };
+
+            return device;
+        };
+    });
+
+	app.factory('deviceApi', function($q, domoticzApi, dzTimeAndSun, Device) {
 		return {
 			getDeviceInfo: getDeviceInfo,
-            updateDeviceInfo: updateDeviceInfo
+            updateDeviceInfo: updateDeviceInfo,
+            removeDevice: removeDevice,
+            disableDevice: disableDevice
 		};
 
 		function getDeviceInfo(deviceIdx) {
@@ -261,7 +334,7 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
                     dzTimeAndSun.updateData(data);
 
 					return data && data.result && data.result.length === 1
-						? data.result[0]
+						? new Device(data.result[0])
 						: $q.reject(data);
 				});
 		}
@@ -271,6 +344,21 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
 				idx: deviceIdx
 			}));
 		}
+
+		function removeDevice(deviceIdx) {
+            return domoticzApi.sendRequest({
+                idx: deviceIdx,
+                type: 'setused',
+                used: false,
+                RemoveSubDevices: true
+            });
+        }
+
+        function disableDevice(deviceIdx) {
+            return domoticzApi.sendCommand('setunused', {
+                idx: deviceIdx,
+            });
+        }
 	});
 
     app.factory('deviceLightApi', function ($q, domoticzApi, permissions) {
@@ -492,6 +580,12 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
 				controllerUrl: 'app/timers/DeviceTimersController.js',
 				controllerAs: 'vm'
 			})).
+			when('/Devices/:id/Notifications', angularAMD.route({
+				templateUrl: 'views/notifications.html',
+				controller: 'DeviceNotificationsController',
+				controllerUrl: 'app/notifications/DeviceNotifications.js',
+				controllerAs: 'vm'
+			})).
 			when('/Devices/:id/LightEdit', angularAMD.route({
 				templateUrl: 'views/device_light_edit.html',
 				controller: 'DeviceLightEditController',
@@ -502,6 +596,18 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
 				templateUrl: 'views/log/device_light_log.html',
 				controller: 'DeviceLightLogController',
 				controllerUrl: 'app/log/LightLog.js',
+				controllerAs: 'vm'
+			})).
+			when('/Devices/:id/TextLog', angularAMD.route({
+				templateUrl: 'views/log/scene_log.html',
+				controller: 'DeviceTextLogController',
+				controllerUrl: 'app/log/TextLog.js',
+				controllerAs: 'vm'
+			})).
+			when('/Devices/:id/GraphLog', angularAMD.route({
+				templateUrl: 'views/log/device_graph_log.html',
+				controller: 'DeviceGraphLogController',
+				controllerUrl: 'app/log/GraphLog.js',
 				controllerAs: 'vm'
 			})).
 			when('/Devices/:id/TemperatureLog', angularAMD.route({
@@ -833,6 +939,7 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
 			}
 
 			$.myglobals.DashboardType = $rootScope.config.DashboardType;
+			$.myglobals.DateFormat = $rootScope.config.DateFormat;
 
 			if (typeof $rootScope.config.WindScale != 'undefined') {
 				$.myglobals.windscale = parseFloat($rootScope.config.WindScale);
@@ -874,12 +981,14 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
 			WindSign: "km/h",
 			language: "en",
 			HaveUpdate: false,
+			UseUpdate: true,
 			appversion: 0,
 			apphash: 0,
 			appdate: 0,
 			pythonversion: "",
 			versiontooltip: "",
-			ShowUpdatedEffect: true
+			ShowUpdatedEffect: true,
+			DateFormat: "yy-mm-dd"
 		};
 
 		$rootScope.GetGlobalConfig = function () {
@@ -982,26 +1091,29 @@ define(['angularAMD', 'angular-route', 'angular-animate', 'ng-grid', 'ng-grid-fl
 		}
 
 		$rootScope.GetGlobalConfig();
-
 		$.ajax({
 			url: "json.htm?type=command&param=getversion",
 			async: false,
 			dataType: 'json',
 			success: function (data) {
-				isOnline = true;
+			    isOnline = true;
 				if (data.status == "OK") {
-					$rootScope.config.appversion = data.version;
+				    $rootScope.config.appversion = data.version;
 					$rootScope.config.apphash = data.hash;
 					$rootScope.config.appdate = data.build_time;
 					$rootScope.config.dzventsversion = data.dzvents_version;
 					$rootScope.config.pythonversion = data.python_version;
+					$rootScope.config.isproxied = data.isproxied;
 					$rootScope.config.versiontooltip = "'Build Hash: <b>" + $rootScope.config.apphash + "</b><br>" + "Build Date: " + $rootScope.config.appdate + "'";
 					$("#appversion").text("V" + data.version);
-					if (data.SystemName != "windows") {
-						$rootScope.config.HaveUpdate = data.HaveUpdate;
-					}
-					$rootScope.config.isproxied = data.isproxied;
-					if (data.HaveUpdate == true) {
+					//if (data.SystemName != "windows") {
+					    $rootScope.config.HaveUpdate = data.HaveUpdate;
+					    $rootScope.config.UseUpdate = data.UseUpdate;
+					//}
+					//else {
+					//    $rootScope.config.UseUpdate = false;
+					//}
+					if ((data.HaveUpdate == true) && (data.UseUpdate)) {
 						ShowUpdateNotification(data.Revision, data.SystemName, data.DomoticzUpdateURL);
 					}
 				}

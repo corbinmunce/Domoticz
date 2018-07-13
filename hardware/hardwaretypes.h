@@ -1,7 +1,16 @@
 #pragma once
 
-#include "../main/Helper.h"
-#include "../json/json.h"
+#include "../cereal/cereal.hpp"
+//#include "../cereal/types/string.hpp"
+//#include "../cereal/types/utility.hpp"
+//#include "../cereal/types/memory.hpp"
+//#include "../cereal/types/complex.hpp"
+//#include "../cereal/types/base_class.hpp"
+//#include "../cereal/types/array.hpp"
+//#include "../cereal/types/vector.hpp"
+//#include "../cereal/types/map.hpp"
+
+#include "ColorSwitch.h"
 
 #define sTypeDomoticzSecurity 0x83
 #define sTypeSmartwaresSwitchRadiator 0x84
@@ -29,16 +38,6 @@
 #define bmpbaroforecast_thunderstorm	0x04
 #define bmpbaroforecast_unknown			0x05
 #define bmpbaroforecast_rain			0x06 //when forecast was cloudy and pressure is below 1010 we have 50%+ change of rain
-
-#define pTypeColorSwitch		0xF1
-#define sTypeColor_RGB_W		0x01 // RGB + white, either RGB or white can be lit
-#define sTypeColor_RGB			0x02 // RGB
-#define sTypeColor_White		0x03 // Monochrome white
-#define sTypeColor_RGB_CW_WW	0x04 // RGB + cold white + warm white, either RGB or white can be lit
-#define sTypeColor_LivCol		0x05
-#define sTypeColor_RGB_W_Z		0x06 // Like RGBW, but allows combining RGB and white
-#define sTypeColor_RGB_CW_WW_Z	0x07 // Like RGBWW, but allows combining RGB and white
-#define sTypeColor_CW_WW		0x08 // Cold white + Warm white
 
 #define pTypeThermostat			0xF2
 #define sTypeThermSetpoint		0x01
@@ -72,6 +71,7 @@
 #define sTypeWaterflow				0x1E
 #define sTypeCustom					0x1F
 #define sTypeZWaveAlarm				0x20
+#define sTypeManagedCounter			0x21
 
 //General Switch
 #define pTypeGeneralSwitch			0xF4
@@ -291,24 +291,45 @@ typedef struct _tThermostat {
 	uint8_t utemp2;
 	uint8_t utemp3;
 
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("id2", id2);
+		ar & cereal::make_nvp("id3", id3);
+		ar & cereal::make_nvp("id4", id4);
+		ar & cereal::make_nvp("dunit", dunit);
+		ar & cereal::make_nvp("battery_level", battery_level);
+		ar & cereal::make_nvp("temp", temp);
+		ar & cereal::make_nvp("temp1", temp1);
+		ar & cereal::make_nvp("temp2", temp2);
+		ar & cereal::make_nvp("temp3", temp3);
+		ar & cereal::make_nvp("utemp1", utemp1);
+		ar & cereal::make_nvp("utemp2", utemp2);
+		ar & cereal::make_nvp("utemp3", utemp3);
+	}
+
 	_tThermostat()
 	{
-		len=sizeof(_tThermostat)-1;
-		type=pTypeThermostat;
-		subtype=sTypeThermTemperature;
-		battery_level=255;
-		id1=1;
-		id2=0;
-		id3=0;
-		id4=0;
-		dunit=0;
-		temp=0;
-		temp1=0;
-		temp2=0;
-		temp3=0;
-		utemp1=0;
-		utemp2=0;
-		utemp3=0;
+		len = sizeof(_tThermostat) - 1;
+		type = pTypeThermostat;
+		subtype = sTypeThermTemperature;
+		battery_level = 255;
+		id1 = 1;
+		id2 = 0;
+		id3 = 0;
+		id4 = 0;
+		dunit = 0;
+		temp = 0;
+		temp1 = 0;
+		temp2 = 0;
+		temp3 = 0;
+		utemp1 = 0;
+		utemp2 = 0;
+		utemp3 = 0;
 	}
 } tThermostat;
 
@@ -322,16 +343,29 @@ typedef struct _tTempBaro {
 	float altitude;
 	uint8_t forecast;
 
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("temp", temp);
+		ar & cereal::make_nvp("baro", baro);
+		ar & cereal::make_nvp("altitude", altitude);
+		ar & cereal::make_nvp("forecast", forecast);
+	}
+
 	_tTempBaro()
 	{
-		len=sizeof(_tTempBaro)-1;
-		type=pTypeTEMP_BARO;
-		subtype=sTypeBMP085;
-		id1=1;
-		temp=0;
-		baro=0;
-		altitude=0;
-		forecast=0;
+		len = sizeof(_tTempBaro) - 1;
+		type = pTypeTEMP_BARO;
+		subtype = sTypeBMP085;
+		id1 = 1;
+		temp = 0;
+		baro = 0;
+		altitude = 0;
+		forecast = 0;
 	}
 } _tTempBaro;
 
@@ -342,11 +376,23 @@ typedef struct _tAirQualityMeter {
 	uint8_t	id1;
 	uint8_t	id2;
 	int32_t airquality;
+
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("id2", id2);
+		ar & cereal::make_nvp("airquality", airquality);
+	}
+
 	_tAirQualityMeter()
 	{
-		len=sizeof(_tAirQualityMeter)-1;
-		type=pTypeAirQuality;
-		subtype=sTypeVoltcraft;
+		len = sizeof(_tAirQualityMeter) - 1;
+		type = pTypeAirQuality;
+		subtype = sTypeVoltcraft;
 		id1 = 0;
 		id2 = 1;
 		airquality = 0;
@@ -364,17 +410,31 @@ typedef struct _tUsageMeter {
 	uint8_t dunit;
 	float fusage;
 
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("id2", id2);
+		ar & cereal::make_nvp("id3", id3);
+		ar & cereal::make_nvp("id4", id4);
+		ar & cereal::make_nvp("dunit", dunit);
+		ar & cereal::make_nvp("fusage", fusage);
+	}
+
 	_tUsageMeter()
 	{
-		len=sizeof(_tUsageMeter)-1;
-		type=pTypeUsage;
-		subtype=sTypeElectric;
-		id1=0;
-		id2=0;
-		id3=0;
-		id4=0;
-		dunit=0;
-		fusage=0;
+		len = sizeof(_tUsageMeter) - 1;
+		type = pTypeUsage;
+		subtype = sTypeElectric;
+		id1 = 0;
+		id2 = 0;
+		id3 = 0;
+		id4 = 0;
+		dunit = 0;
+		fusage = 0;
 	}
 } UsageMeter;
 
@@ -390,18 +450,33 @@ typedef struct _tLightMeter {
 	uint8_t battery_level;
 	float fLux;
 
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("id2", id2);
+		ar & cereal::make_nvp("id3", id3);
+		ar & cereal::make_nvp("id4", id4);
+		ar & cereal::make_nvp("dunit", dunit);
+		ar & cereal::make_nvp("battery_level", battery_level);
+		ar & cereal::make_nvp("fLux", fLux);
+	}
+
 	_tLightMeter()
 	{
-		len=sizeof(_tLightMeter)-1;
-		type=pTypeLux;
-		subtype=sTypeLux;
-		id1=0;
-		id2=0;
-		id3=0;
-		id4=0;
-		battery_level=255;
-		dunit=0;
-		fLux=0;
+		len = sizeof(_tLightMeter) - 1;
+		type = pTypeLux;
+		subtype = sTypeLux;
+		id1 = 0;
+		id2 = 0;
+		id3 = 0;
+		id4 = 0;
+		battery_level = 255;
+		dunit = 0;
+		fLux = 0;
 	}
 } LightMeter;
 
@@ -415,16 +490,31 @@ typedef struct _tGeneralDevice {
 	int32_t intval1;
 	int32_t intval2;
 	char text[64];
+
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id", id);
+		ar & cereal::make_nvp("floatval1", floatval1);
+		ar & cereal::make_nvp("floatval2", floatval2);
+		ar & cereal::make_nvp("intval1", intval1);
+		ar & cereal::make_nvp("intval2", intval2);
+		ar & cereal::make_nvp("text", text);
+	}
+
 	_tGeneralDevice()
 	{
-		len=sizeof(_tGeneralDevice)-1;
-		type=pTypeGeneral;
-		subtype=sTypeVisibility;
-		id=0;
-		floatval1=0;
-		floatval2=0;
-		intval1=0;
-		intval2=0;
+		len = sizeof(_tGeneralDevice) - 1;
+		type = pTypeGeneral;
+		subtype = sTypeVisibility;
+		id = 0;
+		floatval1 = 0;
+		floatval2 = 0;
+		intval1 = 0;
+		intval2 = 0;
 		text[0] = 0;
 	}
 } GeneralDevice;
@@ -442,6 +532,24 @@ typedef struct _tGeneralSwitch {
 	uint8_t seqnbr;
 	int32_t reserved_int;
 	float	reserved_float;
+
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id", id);
+		ar & cereal::make_nvp("unitcode", unitcode);
+		ar & cereal::make_nvp("cmnd", cmnd);
+		ar & cereal::make_nvp("level", level);
+		ar & cereal::make_nvp("rssi", rssi);
+		ar & cereal::make_nvp("battery_level", battery_level);
+		ar & cereal::make_nvp("seqnbr", seqnbr);
+		ar & cereal::make_nvp("reserved_int", reserved_int);
+		ar & cereal::make_nvp("reserved_float", reserved_float);
+	}
+
 	_tGeneralSwitch()
 	{
 		len = sizeof(_tGeneralSwitch) - 1;
@@ -460,298 +568,153 @@ typedef struct _tGeneralSwitch {
 } GeneralSwitch;
 
 typedef struct _tP1Power {
-	uint8_t len;
-	uint8_t type;
-	uint8_t subtype;
-	uint32_t powerusage1;
-	uint32_t powerusage2;
-	uint32_t powerdeliv1;
-	uint32_t powerdeliv2;
-	uint32_t usagecurrent;
-	uint32_t delivcurrent;
-	int32_t ID;
-	_tP1Power()
+	uint8_t len = sizeof(_tP1Power) - 1;
+	uint8_t type = pTypeP1Power;
+	uint8_t subtype = sTypeP1Power;
+	uint32_t powerusage1 = 0;
+	uint32_t powerusage2 = 0;
+	uint32_t powerdeliv1 = 0;
+	uint32_t powerdeliv2 = 0;
+	uint32_t usagecurrent = 0;
+	uint32_t delivcurrent = 0;
+	int32_t ID = 1;
+
+	template <class Archive>
+	void serialize(Archive & ar)
 	{
-		len = sizeof(_tP1Power) - 1;
-		type = pTypeP1Power;
-		subtype = sTypeP1Power;
-		ID = 1;
-		powerusage1 = 0;
-		powerusage2 = 0;
-		powerdeliv1 = 0;
-		powerdeliv2 = 0;
-		usagecurrent = 0;
-		delivcurrent = 0;
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("powerusage1", powerusage1);
+		ar & cereal::make_nvp("powerusage2", powerusage2);
+		ar & cereal::make_nvp("powerdeliv1", powerdeliv1);
+		ar & cereal::make_nvp("powerdeliv2", powerdeliv2);
+		ar & cereal::make_nvp("usagecurrent", usagecurrent);
+		ar & cereal::make_nvp("delivcurrent", delivcurrent);
+		ar & cereal::make_nvp("ID", ID);
 	}
 } P1Power;
 
 typedef struct _tP1Gas {
-	uint8_t len;
-	uint8_t type;
-	uint8_t subtype;
-	uint32_t gasusage;
-	int32_t ID;
-	_tP1Gas()
+	uint8_t len = sizeof(_tP1Gas) - 1;
+	uint8_t type = pTypeP1Gas;
+	uint8_t subtype = sTypeP1Gas;
+	uint32_t gasusage = 0;
+	int32_t ID = 1;
+
+	template <class Archive>
+	void serialize(Archive & ar)
 	{
-		len = sizeof(_tP1Gas) - 1;
-		type = pTypeP1Gas;
-		subtype = sTypeP1Gas;
-		ID = 1;
-		gasusage = 0;
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("gasusage", gasusage);
+		ar & cereal::make_nvp("ID", ID);
 	}
 } P1Gas;
 
-enum ColorMode {
-	ColorModeNone = 0, // Illegal
-	ColorModeWhite,    // White. Valid fields: none
-	ColorModeTemp,     // White with color temperature. Valid fields: t
-	ColorModeRGB,      // Color. Valid fields: r, g, b.
-	                   // Note: The color will be normalized to full brightness in this mode before sent to HW
-	                   // due to limitations in multiple HW types. Normalization is done automatically by Domoticz MQTT
-	                   // and WebServer command handlers, and the brightness is adjusted accordingly.
-	ColorModeCustom,   // Custom (color + white). Valid fields: r, g, b, cw, ww, depending on device capabilities
-	ColorModeLast = ColorModeCustom,
-};
-
-struct _tColor {
-	ColorMode mode;
-	//uint8_t level; // Range:0..255, Master brightness (potential for future use)
-	uint8_t t;     // Range:0..255, Color temperature (warm / cold ratio, 0 is coldest, 255 is warmest)
-	uint8_t r;     // Range:0..255, Red level
-	uint8_t g;     // Range:0..255, Green level
-	uint8_t b;     // Range:0..255, Blue level
-	uint8_t cw;    // Range:0..255, Cold white level
-	uint8_t ww;    // Range:0..255, Warm white level (also used as level for monochrome white)
-
-	_tColor()
-	{
-		//level = 0;
-		t = r = g = b = cw = ww = 0;
-		mode = ColorModeNone;
-	}
-
-	explicit _tColor(Json::Value json)
-	{
-		fromJSON(json);
-	}
-
-	explicit _tColor(const std::string sRaw) //explicit to avoid unintentional conversion of string to _tColor
-	{
-		fromString(sRaw);
-	}
-
-	explicit _tColor(const uint8_t ir, const uint8_t ig, const uint8_t ib, const uint8_t icw, const uint8_t iww, ColorMode imode)
-	{
-		mode = imode;
-		//level=ilevel;
-		r=ir; g=ig; b=ib; cw=icw; ww=iww;
-	}
-
-	explicit _tColor(uint8_t x, ColorMode imode)
-	{
-		_tColor();
-		if (imode == ColorModeWhite)
-		{
-			mode = imode;
-			ww = 0xff;
-			cw = 0xff;
-		}
-		else if (imode == ColorModeTemp)
-		{
-			mode = imode;
-			ww = x;
-			cw = 255-x;
-			t = x;
-		}
-	}
-
-	std::string getrgbwwhex() const
-	{
-		char tmp[13];
-		snprintf(tmp, sizeof(tmp), "%02x%02x%02x%02x%02x", r, g, b, cw, ww);
-		return std::string(tmp);
-	}
-
-	void fromJSON(Json::Value root)
-	{
-		mode = ColorModeNone;
-		int tmp;
-		try {
-			tmp = root.get("m", 0).asInt();
-			if (tmp == ColorModeNone || tmp > ColorModeLast) return;
-			mode = ColorMode(tmp);
-			t = root.get("t", 0).asInt();
-			r = root.get("r", 0).asInt();
-			g = root.get("g", 0).asInt();
-			b = root.get("b", 0).asInt();
-			cw = root.get("cw", 0).asInt();
-			ww = root.get("ww", 0).asInt();
-			//level = root.get("l", 0).asInt();
-		}
-		catch (...) {
-		}
-	}
-
-	void fromString(std::string s)
-	{
-		Json::Value root;
-		Json::Reader reader(Json::Features::strictMode());
-		mode = ColorModeNone;
-		try {
-			bool parsingSuccessful = reader.parse(s.c_str(), root);     //parse process
-			if ( !parsingSuccessful )
-			{
-				mode = ColorModeNone;
-				return;
-			}
-			fromJSON(root);
-		}
-		catch (...) {
-		}
-	}
-
-	std::string toJSON() const
-	{
-		// Return the empty string if the color is not valid
-		if (mode == ColorModeNone || mode > ColorModeLast) return "";
-
-		Json::Value root;
-		root["m"] = mode;
-		//root["l"] = level;
-		root["t"] = t;
-		root["r"] = r;
-		root["g"] = g;
-		root["b"] = b;
-		root["cw"] = cw;
-		root["ww"] = ww;
-
-		Json::FastWriter fastwriter;
-		fastwriter.omitEndingLineFeed();
-		return fastwriter.write(root);
-	}
-
-	std::string toString() const
-	{
-		char tmp[1024];
-		// Return the empty string if the color is not valid
-		if (mode == ColorModeNone || mode > ColorModeLast) return "{INVALID}";
-
-		snprintf(tmp, sizeof(tmp), "{m: %u, RGB: %02x%02x%02x, CWWW: %02x%02x, CT: %u}", mode, r, g, b, cw, ww, t);
-
-		return std::string(tmp);
-	}
-};
-
-const _tColor NoColor = _tColor();
-
-struct _tColorSwitch {
+typedef struct _tEVOHOME1 {
 	uint8_t len;
 	uint8_t type;
 	uint8_t subtype;
-	uint32_t id;
-	uint8_t dunit; //0=All, 1=Group1,2=Group2,3=Group3,4=Group4, 5=IboxLed
-	uint8_t command;
-	uint32_t value;  // Value of command
-	_tColor color;   // Color
-	_tColorSwitch()
+	uint8_t	id1;
+	uint8_t	id2;
+	uint8_t	id3;
+	uint8_t	status;
+	uint8_t	mode;
+	uint16_t year;
+	uint8_t	month;
+	uint8_t	day;
+	uint8_t	hrs;
+	uint8_t	mins;
+	uint8_t	action;
+
+	template <class Archive>
+	void serialize(Archive & ar)
 	{
-		id = 1;
-		dunit = 1;
-		len=sizeof(_tColorSwitch)-1;
-		type=pTypeColorSwitch;
-		subtype=sTypeColor_RGB_W;
-		command=0;
-		value=0;
-		color=NoColor;
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("id2", id2);
+		ar & cereal::make_nvp("id3", id3);
+		ar & cereal::make_nvp("status", status);
+		ar & cereal::make_nvp("mode", mode);
+		ar & cereal::make_nvp("year", year);
+		ar & cereal::make_nvp("month", month);
+		ar & cereal::make_nvp("day", day);
+		ar & cereal::make_nvp("hrs", hrs);
+		ar & cereal::make_nvp("mins", mins);
+		ar & cereal::make_nvp("action", action);
 	}
-};
+} EVOHOME1;
 
-#define Color_LedOff 0
-#define Color_LedOn 1
-#define Color_LedNight 2
-#define Color_LedFull 3
-#define Color_BrightnessUp 4
-#define Color_BrightnessDown 5
-#define Color_ColorTempUp 6
-#define Color_ColorTempDown 7
-#define Color_RGBDiscoNext 8
-#define Color_RGBDiscoPrevious 9
-#define Color_SetColor 10
-#define Color_DiscoSpeedSlower 11
-#define Color_DiscoSpeedFaster 12
-#define Color_DiscoMode 13
-#define Color_SetColorToWhite 14
-#define Color_SetBrightnessLevel 15
-#define Color_SetBrightUp 16
-#define Color_SetBrightDown 17
-#define Color_WarmWhiteIncrease 18
-#define Color_CoolWhiteIncrease 19
-#define Color_NightMode 20
-#define Color_FullBrightness 21
-#define Color_DiscoSpeedFasterLong 22 //exclude RGB
-//#define Color_SetHEXColor 23
-#define Color_DiscoMode_1 24
-#define Color_DiscoMode_2 25
-#define Color_DiscoMode_3 26
-#define Color_DiscoMode_4 27
-#define Color_DiscoMode_5 28
-#define Color_DiscoMode_6 29
-#define Color_DiscoMode_7 30
-#define Color_DiscoMode_8 31
-#define Color_DiscoMode_9 32
-//#define Color_SetKelvinLevel 33
-#define Color_DiscoSpeedMinimal 34
-#define Color_DiscoSpeedMaximal 35
+typedef struct _tEVOHOME2 {
+	uint8_t len;
+	uint8_t type;
+	uint8_t subtype;
+	uint8_t	id1;
+	uint8_t	id2;
+	uint8_t	id3;
+	uint8_t	zone;
+	uint8_t	updatetype;
+	int16_t	temperature;
+	uint8_t	mode;
+	uint8_t	controllermode;
+	uint16_t year;
+	uint8_t	month;
+	uint8_t	day;
+	uint8_t	hrs;
+	uint8_t	mins;
+	uint8_t	battery_level;
 
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("id2", id2);
+		ar & cereal::make_nvp("id3", id3);
+		ar & cereal::make_nvp("zone", zone);
+		ar & cereal::make_nvp("updatetype", updatetype);
+		ar & cereal::make_nvp("temperature", temperature);
+		ar & cereal::make_nvp("mode", mode);
+		ar & cereal::make_nvp("controllermode", controllermode);
+		ar & cereal::make_nvp("year", year);
+		ar & cereal::make_nvp("month", month);
+		ar & cereal::make_nvp("day", day);
+		ar & cereal::make_nvp("hrs", hrs);
+		ar & cereal::make_nvp("mins", mins);
+		ar & cereal::make_nvp("battery_level", battery_level);
+	}
+} EVOHOME2;
 
-typedef union tREVOBUF {
-	struct _tEVOHOME1 {
-		uint8_t len;
-		uint8_t type;
-		uint8_t subtype;
-		uint8_t	id1;
-		uint8_t	id2;
-		uint8_t	id3;
-		uint8_t	status;
-		uint8_t	mode;
-		uint16_t year;
-		uint8_t	month;
-		uint8_t	day;
-		uint8_t	hrs;
-		uint8_t	mins;
-		uint8_t	action;
-	} EVOHOME1;
+typedef struct _tEVOHOME3 {
+	uint8_t len;
+	uint8_t type;
+	uint8_t subtype;
+	uint8_t	id1;
+	uint8_t	id2;
+	uint8_t	id3;
+	uint8_t	devno;
+	uint8_t	demand;
+	uint8_t	updatetype;
+	uint8_t	battery_level;
 
-	struct _tEVOHOME2 {
-		uint8_t len;
-		uint8_t type;
-		uint8_t subtype;
-		uint8_t	id1;
-		uint8_t	id2;
-		uint8_t	id3;
-		uint8_t	zone;
-		uint8_t	updatetype;
-		int16_t	temperature;
-		uint8_t	mode;
-		uint8_t	controllermode;
-		uint16_t year;
-		uint8_t	month;
-		uint8_t	day;
-		uint8_t	hrs;
-		uint8_t	mins;
-		uint8_t	battery_level;
-	} EVOHOME2;
-
-	struct _tEVOHOME3 {
-		uint8_t len;
-		uint8_t type;
-		uint8_t subtype;
-		uint8_t	id1;
-		uint8_t	id2;
-		uint8_t	id3;
-		uint8_t	devno;
-		uint8_t	demand;
-		uint8_t	updatetype;
-		uint8_t	battery_level;
-	} EVOHOME3;
-} REVOBUF;
+	template <class Archive>
+	void serialize(Archive & ar)
+	{
+		ar & cereal::make_nvp("len", len);
+		ar & cereal::make_nvp("type", type);
+		ar & cereal::make_nvp("subtype", subtype);
+		ar & cereal::make_nvp("id1", id1);
+		ar & cereal::make_nvp("id2", id2);
+		ar & cereal::make_nvp("id3", id3);
+		ar & cereal::make_nvp("devno", devno);
+		ar & cereal::make_nvp("demand", demand);
+		ar & cereal::make_nvp("updatetype", updatetype);
+		ar & cereal::make_nvp("battery_level", battery_level);
+	}
+} EVOHOME3;

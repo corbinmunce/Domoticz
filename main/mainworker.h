@@ -5,7 +5,6 @@
 #include "Scheduler.h"
 #include "EventSystem.h"
 #include "Camera.h"
-#include <map>
 #include <deque>
 #include "WindCalculation.h"
 #include "../tcpserver/TCPServer.h"
@@ -14,13 +13,6 @@
 #ifdef ENABLE_PYTHON
 #	include "../hardware/plugins/PluginManager.h"
 #endif
-
-enum eVerboseLevel
-{
-	EVBL_None = 0,
-	EVBL_ALL = 1,
-	EVBL_DEBUG = 2
-};
 
 class MainWorker
 {
@@ -47,8 +39,6 @@ public:
 	void HeartbeatRemove(const std::string &component);
 	void HeartbeatCheck();
 
-	void SetVerboseLevel(eVerboseLevel Level);
-	eVerboseLevel GetVerboseLevel();
 	void SetWebserverSettings(const http::server::server_settings & settings);
 	std::string GetWebserverAddress();
 	std::string GetWebserverPort();
@@ -78,8 +68,6 @@ public:
 	bool SetZWaveThermostatFanMode(const std::string &idx, const int fMode);
 	bool SetZWaveThermostatModeInt(const std::vector<std::string> &sd, const int tMode);
 	bool SetZWaveThermostatFanModeInt(const std::vector<std::string> &sd, const int fMode);
-
-	bool SetRFXCOMHardwaremodes(const int HardwareID, const unsigned char Mode1, const unsigned char Mode2, const unsigned char Mode3, const unsigned char Mode4, const unsigned char Mode5, const unsigned char Mode6);
 
 	bool SwitchModal(const std::string &idx, const std::string &status, const std::string &action, const std::string &ooc, const std::string &until);
 
@@ -112,7 +100,7 @@ public:
 	void SetInternalSecStatus();
 	bool GetSensorData(const uint64_t idx, int &nValue, std::string &sValue);
 
-	bool UpdateDevice(const int HardwareID, const std::string &DeviceID, const int unit, const int devType, const int subType, const int nValue, const std::string &sValue, const int signallevel, const int batterylevel, const bool parseTrigger = true);
+	bool UpdateDevice(const int HardwareID, const std::string &DeviceID, const int unit, const int devType, const int subType, int nValue, std::string &sValue, const int signallevel, const int batterylevel, const bool parseTrigger = true);
 
 	boost::signals2::signal<void(const int m_HwdID, const uint64_t DeviceRowIdx, const std::string &DeviceName, const unsigned char *pRXCommand)> sOnDeviceReceived;
 	boost::signals2::signal<void(const uint64_t SceneIdx, const std::string &SceneName)> sOnSwitchScene;
@@ -150,9 +138,9 @@ private:
 	uint64_t PerformRealActionFromDomoticzClient(const unsigned char *pRXCommand, CDomoticzHardwareBase **pOriginalHardware);
 	void HandleLogNotifications();
 	std::map<std::string, time_t > m_componentheartbeats;
-	boost::mutex m_heartbeatmutex;
+	std::mutex m_heartbeatmutex;
 
-	boost::mutex m_decodeRXMessageMutex;
+	std::mutex m_decodeRXMessageMutex;
 
 	std::vector<int> m_devicestorestart;
 
@@ -169,7 +157,7 @@ private:
 	time_t m_ScheduleLastDayTime;
 
 
-	boost::mutex m_devicemutex;
+	std::mutex m_devicemutex;
 
 	std::string m_szDomoticzUpdateChecksumURL;
 	bool m_bDoDownloadDomoticzUpdate;
@@ -177,14 +165,13 @@ private:
 	unsigned char m_hardwareStartCounter;
 
 	std::vector<CDomoticzHardwareBase*> m_hardwaredevices;
-	eVerboseLevel m_verboselevel;
 	http::server::server_settings m_webserver_settings;
 #ifdef WWW_ENABLE_SSL
 	http::server::ssl_server_settings m_secure_webserver_settings;
 #endif
 	volatile bool m_stoprequested;
-	boost::shared_ptr<boost::thread> m_thread;
-	boost::mutex m_mutex;
+	std::shared_ptr<std::thread> m_thread;
+	std::mutex m_mutex;
 
 	time_t m_LastUpdateCheck;
 
@@ -192,8 +179,6 @@ private:
 	void Do_Work();
 	void Heartbeat();
 	void ParseRFXLogFile();
-	void SendResetCommand(CDomoticzHardwareBase *pHardware);
-	void SendCommand(const int HwdID, unsigned char Cmd, const char *szMessage=NULL);
 	bool WriteToHardware(const int HwdID, const char *pdata, const unsigned char length);
 
 	void OnHardwareConnected(CDomoticzHardwareBase *pHardware);
@@ -210,7 +195,7 @@ private:
 	// RxMessage queue resources
 	volatile bool m_stopRxMessageThread;
 	volatile unsigned long m_rxMessageIdx;
-	boost::shared_ptr<boost::thread> m_rxMessageThread;
+	std::shared_ptr<std::thread> m_rxMessageThread;
 	void Do_Work_On_Rx_Messages();
 	struct _tRxQueueItem {
 		std::string Name;

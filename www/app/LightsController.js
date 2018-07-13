@@ -304,7 +304,7 @@ define(['app'], function (app) {
 				return EvoDisplayTextMode(item.Status);
 			}
 			else if (item.SwitchType === "Selector") {
-				return item.LevelNames.split('|')[(item.LevelInt / 10)];
+				return b64DecodeUnicode(item.LevelNames).split('|')[(item.LevelInt / 10)];
 			}
 			else
 				return item.Status;
@@ -398,10 +398,10 @@ define(['app'], function (app) {
 								}
 								else if (item.SwitchType == "Door Contact") {
 									if (item.InternalState == "Open") {
-										img = '<img src="images/door48open.png" title="' + $.t("Close Door") + '" height="48" width="48">';
+                                        img = '<img src="images/door48open.png" title="' + $.t(item.InternalState) + '" height="48" width="48">';
 									}
 									else {
-										img = '<img src="images/door48.png" title="' + $.t("Open Door") + '" height="48" width="48">';
+                                        img = '<img src="images/door48.png" title="' + $.t(item.InternalState) + '" height="48" width="48">';
 									}
 								}
 								else if (item.SwitchType == "Door Lock") {
@@ -734,7 +734,7 @@ define(['app'], function (app) {
 									if (typeof selector$ !== 'undefined') {
 										if (item.SelectorStyle === 0) {
 											var xhtm = '';
-											var levelNames = item.LevelNames.split('|');
+											var levelNames = b64DecodeUnicode(item.LevelNames).split('|');
 											$.each(levelNames, function (index, levelName) {
 												if ((index === 0) && (item.LevelOffHidden)) {
 													return;
@@ -746,7 +746,7 @@ define(['app'], function (app) {
 												else {
 													xhtm += 'btn-default"';
 												}
-												xhtm += 'id="lSelector' + item.idx + 'Level' + index + '" name="selector' + item.idx + 'Level" value="' + (index * 10) + '" onclick="SwitchSelectorLevel(' + item.idx + ',\'' + unescape(levelName) + '\',' + (index * 10) + ',RefreshLights,' + item.isProtected + ');">' + levelName + '</button>';
+												xhtm += 'id="lSelector' + item.idx + 'Level' + index + '" name="selector' + item.idx + 'Level" value="' + (index * 10) + '" onclick="SwitchSelectorLevel(' + item.idx + ',\'' + unescape(levelName) + '\',' + (index * 10) + ',RefreshLights,' + item.Protected + ');">' + levelName + '</button>';
 											});
 											selector$.html(xhtm);
 										} else if (item.SelectorStyle === 1) {
@@ -964,10 +964,10 @@ define(['app'], function (app) {
 							}
 							else if (item.SwitchType == "Door Contact") {
 								if (item.InternalState == "Open") {
-									xhtm += '\t      <td id="img"><img src="images/door48open.png" title="' + $.t("Close Door") + '" height="48" width="48"></td>\n';
+                                    xhtm += '\t      <td id="img"><img src="images/door48open.png" title="' + $.t(item.InternalState) + '" height="48" width="48"></td>\n';
 								}
 								else {
-									xhtm += '\t      <td id="img"><img src="images/door48.png" title="' + $.t("Open Door") + '" height="48" width="48"></td>\n';
+                                    xhtm += '\t      <td id="img"><img src="images/door48.png" title="' + $.t(item.InternalState) + '" height="48" width="48"></td>\n';
 								}
 								bAddTimer = false;
 							}
@@ -1253,9 +1253,13 @@ define(['app'], function (app) {
 								bAddTimer = false;
 								xhtm += '\t      <td id="img"><img src="images/Fan48_On.png" height="48" width="48" class="lcursor" onclick="ShowIthoPopup(event, ' + item.idx + ', ShowLights, ' + item.Protected + ');"></td>\n';
 							}
-							else if (item.SubType.indexOf("Lucci") == 0) {
+							else if (item.SubType.indexOf("Lucci Air DC") == 0) {
 								bAddTimer = false;
-								xhtm += '\t      <td id="img"><img src="images/Fan48_On.png" height="48" width="48" class="lcursor" onclick="ShowLucciPopup(event, ' + item.idx + ', ShowLights, ' + item.Protected + ');"></td>\n';
+								xhtm += '\t      <td id="img"><img src="images/Fan48_On.png" height="48" width="48" class="lcursor" onclick="ShowLucciDCPopup(event, ' + item.idx + ', ShowLights, ' + item.Protected + ');"></td>\n';
+							}
+							else if (item.SubType.indexOf("Lucci") == 0) {
+							    bAddTimer = false;
+							    xhtm += '\t      <td id="img"><img src="images/Fan48_On.png" height="48" width="48" class="lcursor" onclick="ShowLucciPopup(event, ' + item.idx + ', ShowLights, ' + item.Protected + ');"></td>\n';
 							}
 							else {
 								if (
@@ -1308,8 +1312,8 @@ define(['app'], function (app) {
 							}
 							else if (item.SwitchType == "Selector") {
 								if (item.SelectorStyle === 0) {
-									xhtm += '<br/><div class="btn-group" style="margin-top: 4px;" id="selector' + item.idx + '" data-idx="' + item.idx + '" data-isprotected="' + item.Protected + '" data-level="' + item.LevelInt + '" data-levelnames="' + escape(item.LevelNames) + '" data-selectorstyle="' + item.SelectorStyle + '" data-levelname="' + escape(GetLightStatusText(item)) + '" data-leveloffhidden="' + item.LevelOffHidden + '" data-levelactions="' + item.LevelActions + '">';
-									var levelNames = item.LevelNames.split('|');
+									xhtm += '<br/><div class="btn-group" style="margin-top: 4px;" id="selector' + item.idx + '" data-idx="' + item.idx + '" data-isprotected="' + item.Protected + '" data-level="' + item.LevelInt + '" data-levelnames="' + item.LevelNames + '" data-selectorstyle="' + item.SelectorStyle + '" data-levelname="' + escape(GetLightStatusText(item)) + '" data-leveloffhidden="' + item.LevelOffHidden + '" data-levelactions="' + item.LevelActions + '">';
+									var levelNames = b64DecodeUnicode(item.LevelNames).split('|');
 									$.each(levelNames, function (index, levelName) {
 										if ((index === 0) && (item.LevelOffHidden)) {
 											return;
@@ -1321,13 +1325,13 @@ define(['app'], function (app) {
 										else {
 											xhtm += 'btn-default"';
 										}
-										xhtm += 'id="lSelector' + item.idx + 'Level' + index + '" name="selector' + item.idx + 'Level" value="' + (index * 10) + '" onclick="SwitchSelectorLevel(' + item.idx + ',\'' + unescape(levelName) + '\',' + (index * 10) + ',RefreshLights,' + item.isProtected + ');">' + levelName + '</button>';
+										xhtm += 'id="lSelector' + item.idx + 'Level' + index + '" name="selector' + item.idx + 'Level" value="' + (index * 10) + '" onclick="SwitchSelectorLevel(' + item.idx + ',\'' + unescape(levelName) + '\',' + (index * 10) + ',RefreshLights,' + item.Protected + ');">' + levelName + '</button>';
 									});
 									xhtm += '</div>';
 								} else if (item.SelectorStyle === 1) {
 									xhtm += '<br><div class="selectorlevels" style="margin-top: 0.4em;">';
-									xhtm += '<select id="selector' + item.idx + '" data-idx="' + item.idx + '" data-isprotected="' + item.Protected + '" data-level="' + item.LevelInt + '" data-levelnames="' + escape(item.LevelNames) + '" data-selectorstyle="' + item.SelectorStyle + '" data-levelname="' + escape(GetLightStatusText(item)) + '" data-leveloffhidden="' + item.LevelOffHidden + '" data-levelactions="' + item.LevelActions + '">';
-									var levelNames = item.LevelNames.split('|');
+									xhtm += '<select id="selector' + item.idx + '" data-idx="' + item.idx + '" data-isprotected="' + item.Protected + '" data-level="' + item.LevelInt + '" data-levelnames="' + item.LevelNames + '" data-selectorstyle="' + item.SelectorStyle + '" data-levelname="' + escape(GetLightStatusText(item)) + '" data-leveloffhidden="' + item.LevelOffHidden + '" data-levelactions="' + item.LevelActions + '">';
+									var levelNames = b64DecodeUnicode(item.LevelNames).split('|');
 									$.each(levelNames, function (index, levelName) {
 										if ((index === 0) && (item.LevelOffHidden)) {
 											return;
@@ -1373,10 +1377,11 @@ define(['app'], function (app) {
 										xhtm += '<a id="resetbtn" class="btnsmall-dis" onclick="ResetSecurityStatus(' + item.idx + ',\'Normal\',ShowLights);" data-i18n="Reset">Reset</a> ';
 									}
 								}
+								var notificationLink = '#/Devices/'+item.idx+'/Notifications';
 								if (item.Notifications == "true")
-									xhtm += '<a class="btnsmall-sel" onclick="ShowNotifications(' + item.idx + ',\'' + escape(item.Name) + '\', \'#lightcontent\', \'ShowLights\',' + bIsDimmer + ',\'' + item.Type + '\'' + ', \'' + item.SubType + '\');" data-i18n="Notifications">Notifications</a>';
+									xhtm += '<a class="btnsmall-sel" href="' + notificationLink + '" data-i18n="Notifications">Notifications</a>';
 								else
-									xhtm += '<a class="btnsmall" onclick="ShowNotifications(' + item.idx + ',\'' + escape(item.Name) + '\', \'#lightcontent\', \'ShowLights\',' + bIsDimmer + ',\'' + item.Type + '\'' + ', \'' + item.SubType + '\');" data-i18n="Notifications">Notifications</a>';
+									xhtm += '<a class="btnsmall" href="' + notificationLink + '" data-i18n="Notifications">Notifications</a>';
 							}
 							xhtm +=
 								'</td>\n' +
@@ -1822,7 +1827,7 @@ define(['app'], function (app) {
 				$("#dialog-addmanuallightdevice #lighting3params").hide();
 				$("#dialog-addmanuallightdevice #fanparams").show();
 			}
-			else if (lighttype == 305) {
+			else if ((lighttype == 305)||(lighttype == 306)) {
 				//Fan (Lucci Air)
 				$("#dialog-addmanuallightdevice #lighting1params").hide();
 				$("#dialog-addmanuallightdevice #lighting2params").hide();
@@ -2031,7 +2036,7 @@ define(['app'], function (app) {
 					$("#dialog-addmanuallightdevice #fanparams #combocmd3 option:selected").text();
 				mParams += "&id=" + ID;
 			}
-			else if (lighttype == 305) {
+			else if ((lighttype == 305)||(lighttype == 306)) {
 				//Fan (Lucci Air)
 				ID =
 					$("#dialog-addmanuallightdevice #fanparams #combocmd1 option:selected").text() +

@@ -9,7 +9,7 @@ typedef unsigned char byte;
 
 namespace Plugins {
 
-	extern boost::mutex PythonMutex;			// controls access to Python
+	extern std::mutex PythonMutex;			// controls access to Python
 
 	class CPluginMessageBase
 	{
@@ -66,12 +66,14 @@ namespace Plugins {
 		std::string	m_Callback;
 		virtual void ProcessLocked() = 0;
 	public:
-		CCallbackBase(CPlugin* pPlugin, std::string Callback) : CPluginMessageBase(pPlugin), m_Callback(Callback) {};
+		CCallbackBase(CPlugin* pPlugin, const std::string &Callback) : CPluginMessageBase(pPlugin), m_Callback(Callback) {};
 		virtual void Callback(PyObject* pParams) { if (m_Callback.length()) m_pPlugin->Callback(m_Callback, pParams); };
 		void Process()
 		{
-			boost::lock_guard<boost::mutex> l(PythonMutex);
+			std::lock_guard<std::mutex> l(PythonMutex);
+			m_pPlugin->RestoreThread();
 			ProcessLocked();
+			m_pPlugin->ReleaseThread();
 		};
 		virtual const char* PythonName() { return m_Callback.c_str(); };
 	};
@@ -130,7 +132,7 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 	{
 	public:
 		onConnectCallback(CPlugin* pPlugin, PyObject* Connection) : CCallbackBase(pPlugin, "onConnect"), CHasConnection(Connection) { m_Name = __func__; };
-		onConnectCallback(CPlugin* pPlugin, PyObject* Connection, const int Code, const std::string Text) : CCallbackBase(pPlugin, "onConnect"), CHasConnection(Connection), m_Status(Code), m_Text(Text) { m_Name = __func__; };
+		onConnectCallback(CPlugin* pPlugin, PyObject* Connection, const int Code, const std::string &Text) : CCallbackBase(pPlugin, "onConnect"), CHasConnection(Connection), m_Status(Code), m_Text(Text) { m_Name = __func__; };
 		int						m_Status;
 		std::string				m_Text;
 	protected:
@@ -201,7 +203,7 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 	class onCommandCallback : public CCallbackBase
 	{
 	public:
-		onCommandCallback(CPlugin* pPlugin, int Unit, const std::string& Command, const int level, std::string color) : CCallbackBase(pPlugin, "onCommand")
+		onCommandCallback(CPlugin* pPlugin, int Unit, const std::string& Command, const int level, const std::string &color) : CCallbackBase(pPlugin, "onCommand")
 		{
 			m_Name = __func__;
 			m_Unit = Unit;
@@ -236,6 +238,27 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 			{
 				pParams = Py_BuildValue("isis", m_Unit, m_Command.c_str(), m_iLevel, m_iColor.c_str());
 			}
+			Callback(pParams);
+		};
+	};
+
+	class onSecurityEventCallback : public CCallbackBase
+	{
+	public:
+		onSecurityEventCallback(CPlugin* pPlugin, int Unit, const int level, const std::string& Description) : CCallbackBase(pPlugin, "onSecurityEvent")
+		{
+			m_Name = __func__;
+			m_Unit = Unit;
+			m_iLevel = level;
+			m_Description = Description;
+		};
+		int				m_iLevel;
+		std::string		m_Description;
+
+	protected:
+		virtual void ProcessLocked()
+		{
+			PyObject*	pParams = Py_BuildValue("iis", m_Unit, m_iLevel, m_Description.c_str());
 			Callback(pParams);
 		};
 	};
@@ -337,37 +360,44 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 	// Base directive message class
 	class CDirectiveBase : public CPluginMessageBase
 	{
+	protected:
+		virtual void ProcessLocked() = 0;
 	public:
 		CDirectiveBase(CPlugin* pPlugin) : CPluginMessageBase(pPlugin) {};
-		virtual void Process() { throw "Base directive class Handle called"; };
+		virtual void Process() {
+			std::lock_guard<std::mutex> l(PythonMutex);
+			m_pPlugin->RestoreThread();
+			ProcessLocked();
+			m_pPlugin->ReleaseThread();
+		};
 	};
 
 	class ProtocolDirective : public CDirectiveBase, public CHasConnection
 	{
 	public:
 		ProtocolDirective(CPlugin* pPlugin, PyObject* Connection) : CDirectiveBase(pPlugin), CHasConnection(Connection) { m_Name = __func__; };
-		virtual void Process() { m_pPlugin->ConnectionProtocol(this); };
+		virtual void ProcessLocked() { m_pPlugin->ConnectionProtocol(this); };
 	};
 
 	class ConnectDirective : public CDirectiveBase, public CHasConnection
 	{
 	public:
 		ConnectDirective(CPlugin* pPlugin, PyObject* Connection) : CDirectiveBase(pPlugin), CHasConnection(Connection) { m_Name = __func__; };
-		virtual void Process() { m_pPlugin->ConnectionConnect(this); };
+		virtual void ProcessLocked() { m_pPlugin->ConnectionConnect(this); };
 	};
 
 	class ListenDirective : public CDirectiveBase, public CHasConnection
 	{
 	public:
 		ListenDirective(CPlugin* pPlugin, PyObject* Connection) : CDirectiveBase(pPlugin), CHasConnection(Connection) { m_Name = __func__; };
-		virtual void Process() { m_pPlugin->ConnectionListen(this); };
+		virtual void ProcessLocked() { m_pPlugin->ConnectionListen(this); };
 	};
 
 	class DisconnectDirective : public CDirectiveBase, public CHasConnection
 	{
 	public:
 		DisconnectDirective(CPlugin* pPlugin, PyObject* Connection) : CDirectiveBase(pPlugin), CHasConnection(Connection) { m_Name = __func__; };
-		virtual void Process() { m_pPlugin->ConnectionDisconnect(this); };
+		virtual void ProcessLocked() { m_pPlugin->ConnectionDisconnect(this); };
 	};
 
 	class WriteDirective : public CDirectiveBase, public CHasConnection
@@ -388,14 +418,14 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 				Py_DECREF(m_Object);
 		}
 
-		virtual void Process() { m_pPlugin->ConnectionWrite(this); };
+		virtual void ProcessLocked() { m_pPlugin->ConnectionWrite(this); };
 	};
 
 	class SettingsDirective : public CDirectiveBase
 	{
 	public:
 		SettingsDirective(CPlugin* pPlugin) : CDirectiveBase(pPlugin) { m_Name = __func__; };
-		virtual void Process() { m_pPlugin->LoadSettings(); };
+		virtual void ProcessLocked() { m_pPlugin->LoadSettings(); };
 	};
 
 	class PollIntervalDirective : public CDirectiveBase
@@ -403,7 +433,7 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 	public:
 		PollIntervalDirective(CPlugin* pPlugin, const int PollInterval) : CDirectiveBase(pPlugin), m_Interval(PollInterval) { m_Name = __func__; };
 		int						m_Interval;
-		virtual void Process() {m_pPlugin->PollInterval(m_Interval); };
+		virtual void ProcessLocked() {m_pPlugin->PollInterval(m_Interval); };
 	};
 
 	class NotifierDirective : public CDirectiveBase
@@ -411,15 +441,23 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 	public:
 		NotifierDirective(CPlugin* pPlugin, const char* Name) : CDirectiveBase(pPlugin), m_NotifierName(Name) { m_Name = __func__; };
 		std::string		m_NotifierName;
-		virtual void Process() { m_pPlugin->Notifier(m_NotifierName); };
+		virtual void ProcessLocked() { m_pPlugin->Notifier(m_NotifierName); };
 	};
 
 	// Base event message class
 	class CEventBase : public CPluginMessageBase
 	{
+	protected:
+		virtual void ProcessLocked() = 0;
 	public:
 		CEventBase(CPlugin* pPlugin) : CPluginMessageBase(pPlugin) {};
-		virtual void Process() { throw "Base event class Handle called"; };
+		virtual void Process()
+		{
+			std::lock_guard<std::mutex> l(PythonMutex);
+			m_pPlugin->RestoreThread();
+			ProcessLocked();
+			m_pPlugin->ReleaseThread();
+		}
 	};
 
 	class ReadEvent : public CEventBase, public CHasConnection
@@ -434,7 +472,7 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 		};
 		std::vector<byte>		m_Buffer;
 		int						m_ElapsedMs;
-		virtual void Process()
+		virtual void ProcessLocked()
 		{
 			m_pPlugin->WriteDebugBuffer(m_Buffer, true);
 			m_pPlugin->ConnectionRead(this);
@@ -446,7 +484,7 @@ static std::string get_utf8_from_ansi(const std::string &utf8, int codepage)
 	public:
 		DisconnectedEvent(CPlugin* pPlugin, PyObject* Connection) : CEventBase(pPlugin), CHasConnection(Connection), bNotifyPlugin(true) { m_Name = __func__; };
 		DisconnectedEvent(CPlugin* pPlugin, PyObject* Connection, bool NotifyPlugin) : CEventBase(pPlugin), CHasConnection(Connection), bNotifyPlugin(NotifyPlugin) { m_Name = __func__; };
-		virtual void Process() { m_pPlugin->DisconnectEvent(this); };
+		virtual void ProcessLocked() { m_pPlugin->DisconnectEvent(this); };
 		bool	bNotifyPlugin;
 	};
 }

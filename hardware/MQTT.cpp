@@ -53,8 +53,8 @@ bool MQTT::StartHardware()
 	m_bIsStarted = true;
 
 	//Start worker thread
-	m_thread = boost::shared_ptr<boost::thread>(new boost::thread(boost::bind(&MQTT::Do_Work, this)));
-	return (m_thread!=NULL);
+	m_thread = std::make_shared<std::thread>(&MQTT::Do_Work, this);
+	return (m_thread != nullptr);
 }
 
 void MQTT::StopMQTT()
@@ -298,12 +298,12 @@ void MQTT::on_message(const struct mosquitto_message *message)
 					color.b = b;
 					brightnessAdj = hsb[2];
 				}
-				if (_log.isTraceEnabled()) _log.Log(LOG_TRACE, "MQTT: setcolbrightnessvalue: color: '%s', bri: '%s'", color.toString().c_str(), brightness.c_str());
+				//_log.Debug(DEBUG_NORM, "MQTT: setcolbrightnessvalue: color: '%s', bri: '%s'", color.toString().c_str(), brightness.c_str());
 			}
 			else if (!hex.empty())
 			{
 				uint64_t ihex = hexstrtoui64(hex);
-				if (_log.isTraceEnabled()) _log.Log(LOG_TRACE, "MQTT: setcolbrightnessvalue: hex: '%s', ihex: %" PRIx64 ", bri: '%s', iswhite: '%s'", hex.c_str(), ihex, brightness.c_str(), iswhite.c_str());
+				//_log.Debug(DEBUG_NORM, "MQTT: setcolbrightnessvalue: hex: '%s', ihex: %" PRIx64 ", bri: '%s', iswhite: '%s'", hex.c_str(), ihex, brightness.c_str(), iswhite.c_str());
 				uint8_t r = 0;
 				uint8_t g = 0;
 				uint8_t b = 0;
@@ -345,7 +345,7 @@ void MQTT::on_message(const struct mosquitto_message *message)
 						break;
 				}
 				if (iswhite == "true") color.mode = ColorModeWhite;
-				if (_log.isTraceEnabled()) _log.Log(LOG_TRACE, "MQTT: setcolbrightnessvalue: trgbww: %02x%02x%02x%02x%02x, color: '%s'", r, g, b, cw, ww, color.toString().c_str());
+				//_log.Debug(DEBUG_NORM, "MQTT: setcolbrightnessvalue: trgbww: %02x%02x%02x%02x%02x, color: '%s'", r, g, b, cw, ww, color.toString().c_str());
 			}
 			else if (!hue.empty())
 			{
@@ -359,7 +359,7 @@ void MQTT::on_message(const struct mosquitto_message *message)
 
 				color = _tColor(r, g, b, 0, 0, ColorModeRGB);
 				if (iswhite == "true") color.mode = ColorModeWhite;
-				if (_log.isTraceEnabled()) _log.Log(LOG_TRACE, "MQTT: setcolbrightnessvalue2: hue: %f, rgb: %02x%02x%02x, color: '%s'", iHue, r, g, b, color.toString().c_str());
+				//_log.Debug(DEBUG_NORM, "MQTT: setcolbrightnessvalue2: hue: %f, rgb: %02x%02x%02x, color: '%s'", iHue, r, g, b, color.toString().c_str());
 			}
 
 			if (color.mode == ColorModeNone)
@@ -587,7 +587,6 @@ void MQTT::SendMessage(const std::string &Topic, const std::string &Message)
 
 void MQTT::WriteInt(const std::string &sendStr)
 {
-	boost::lock_guard<boost::mutex> l(m_mqtt_mutex);
 	if (sendStr.size() < 2)
 		return;
 	//string the return and the end
@@ -597,12 +596,11 @@ void MQTT::WriteInt(const std::string &sendStr)
 
 void MQTT::SendDeviceInfo(const int m_HwdID, const uint64_t DeviceRowIdx, const std::string &DeviceName, const unsigned char *pRXCommand)
 {
-	boost::lock_guard<boost::mutex> l(m_mqtt_mutex);
 	if (!m_IsConnected)
 		return;
 	std::vector<std::vector<std::string> > result;
 	result = m_sql.safe_query("SELECT DeviceID, Unit, Name, [Type], SubType, nValue, sValue, SwitchType, SignalLevel, BatteryLevel, Options, Description, LastLevel, Color FROM DeviceStatus WHERE (HardwareID==%d) AND (ID==%" PRIu64 ")", m_HwdID, DeviceRowIdx);
-	if (result.size() > 0)
+	if (!result.empty())
 	{
 		std::vector<std::string> sd = result[0];
 		std::string did = sd[0];
@@ -632,15 +630,14 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const uint64_t DeviceRowIdx, const 
 		if (IsLightOrSwitch(dType, dSubType) == true) {
 			root["switchType"] = Switch_Type_Desc(switchType);
 		}
-		else if ((dType = pTypeRFXMeter) || (dType = pTypeRFXSensor)) {
+		else if ((dType == pTypeRFXMeter) || (dType == pTypeRFXSensor)) {
 			root["meterType"] = Meter_Type_Desc((_eMeterType)switchType);
 		}
 		// Add device options
-		std::map<std::string, std::string>::const_iterator ittOptions;
-		for (ittOptions = options.begin(); ittOptions != options.end(); ++ittOptions)
+		for (const auto & ittOptions : options)
 		{
-			std::string optionName = ittOptions->first.c_str();
-			std::string optionValue = ittOptions->second.c_str();
+			std::string optionName = ittOptions.first;
+			std::string optionValue = ittOptions.second;
 			root[optionName] = optionValue;
 		}
 
@@ -655,8 +652,7 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const uint64_t DeviceRowIdx, const 
 			if (dType == pTypeColorSwitch)
 			{
 				_tColor color(sColor);
-				std::string jsonColor = color.toJSON();
-				root["Color"] = jsonColor;
+				root["Color"] = color.toJSONValue();
 			}
 		}
 
@@ -664,13 +660,12 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const uint64_t DeviceRowIdx, const 
 		std::vector<std::string> strarray;
 		StringSplit(svalue, ";", strarray);
 
-		std::vector<std::string>::const_iterator itt;
 		int sIndex = 1;
-		for (itt = strarray.begin(); itt != strarray.end(); ++itt)
+		for (const auto & itt : strarray)
 		{
 			std::stringstream szQuery;
 			szQuery << "svalue" << sIndex;
-			root[szQuery.str()] = *itt;
+			root[szQuery.str()] = itt;
 			sIndex++;
 		}
 		std::string message =  root.toStyledString();
@@ -708,10 +703,10 @@ void MQTT::SendSceneInfo(const uint64_t SceneIdx, const std::string &SceneName)
 
 	unsigned char nValue = atoi(sd[4].c_str());
 	unsigned char scenetype = atoi(sd[5].c_str());
-	int iProtected = atoi(sd[7].c_str());
+	//int iProtected = atoi(sd[7].c_str());
 
-	//std::string onaction = base64_encode((const unsigned char*)sd[8].c_str(), sd[8].size());
-	//std::string offaction = base64_encode((const unsigned char*)sd[9].c_str(), sd[9].size());
+	//std::string onaction = base64_encode((sd[8]);
+	//std::string offaction = base64_encode(sd[9]);
 
 	Json::Value root;
 
@@ -741,13 +736,15 @@ void MQTT::SendSceneInfo(const uint64_t SceneIdx, const std::string &SceneName)
 	else
 		root["Status"] = "Mixed";
 	root["Timers"] = (m_sql.HasSceneTimers(sd[0]) == true) ? "true" : "false";
+/*
 	uint64_t camIDX = m_mainworker.m_cameras.IsDevSceneInCamera(1, sd[0]);
 	//root["UsedByCamera"] = (camIDX != 0) ? true : false;
 	if (camIDX != 0) {
 		std::stringstream scidx;
 		scidx << camIDX;
-		//root["CameraIdx"] = scidx.str();
+		//root["CameraIdx"] = std::to_string(camIDX);
 	}
+*/
 	std::string message = root.toStyledString();
 	if (m_publish_topics & PT_out)
 	{

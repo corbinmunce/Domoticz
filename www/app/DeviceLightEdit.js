@@ -294,13 +294,12 @@ define(['app'], function (app) {
             }
 
             function isAddLevelAvailable() {
-                var isLessThanLimit = vm.ngModelCtrl.$modelValue.length < 11;
                 var isNotEmpty = !!vm.newLevelName;
                 var isUnique = !vm.ngModelCtrl.$modelValue.find(function (item) {
                     return item.name === vm.newLevelName
                 });
 
-                return isLessThanLimit && isNotEmpty && isUnique;
+                return isNotEmpty && isUnique;
             }
 
             function addLevel() {
@@ -383,7 +382,7 @@ define(['app'], function (app) {
                     paging: false,
                     columns: [
                         {title: $.t('Level'), data: 'level', render: levelRenderer},
-                        {title: $.t('Action'), data: 'action'},
+                        {title: $.t('Action'), data: 'action', render: actionRenderer},
                         {title: '', data: null, render: actionsRenderer}
                     ]
                 });
@@ -436,6 +435,24 @@ define(['app'], function (app) {
             function levelRenderer(level) {
                 return level * 10;
             }
+            
+            var escapeHTML = function(unsafe) {
+				return unsafe.replace(/[&<"']/g, function(m) {
+					switch (m) {
+						case '&':
+							return '&amp;';
+						case '<':
+							return '&lt;';
+						case '"':
+							return '&quot;';
+						default:
+							return '&#039;';
+						}
+					});
+			};
+            function actionRenderer(action) {
+				return escapeHTML(action);
+            }
 
             function actionsRenderer() {
                 var actions = [];
@@ -475,23 +492,19 @@ define(['app'], function (app) {
 
             deviceApi.getDeviceInfo(vm.deviceIdx).then(function (device) {
                 vm.device = device;
-                vm.device.StrParam1 = atob(vm.device.StrParam1);
-                vm.device.StrParam2 = atob(vm.device.StrParam2);
+                vm.device.StrParam1 = b64DecodeUnicode(vm.device.StrParam1);
+                vm.device.StrParam2 = b64DecodeUnicode(vm.device.StrParam2);
 
-                var levelNames = device.LevelNames
-                    ? device.LevelNames.split('|')
-                    : ['Off', 'Level1', 'Level2', 'Level3'];
-                var levelActions = device.LevelActions
-                    ? device.LevelActions.split('|')
-                    : [];
+                var defaultLevelNames = ['Off', 'Level1', 'Level2', 'Level3'];
+
+                var levelNames = device.getLevels() || defaultLevelNames;
+                var levelActions = device.getLevelActions();
 
                 vm.levels = levelNames.map(function (level, index) {
                     return {
                         level: index,
                         name: level,
-                        action: levelActions[index]
-                            ? unescape(levelActions[index])
-                            : ''
+                        action: levelActions[index] ? levelActions[index] : ''
                     };
                 });
             });
@@ -510,8 +523,8 @@ define(['app'], function (app) {
             if (isLevelsAvailable()) {
                 var levelParams = vm.levels.reduce(function (acc, level) {
                     return {
-                        names: acc.names.concat(encodeURIComponent(level.name)),
-                        actions: acc.actions.concat(encodeURIComponent(level.action))
+                        names: acc.names.concat(level.name),
+                        actions: acc.actions.concat(level.action)
                     };
                 }, {names: [], actions: []});
 
@@ -520,15 +533,14 @@ define(['app'], function (app) {
                 options.push('SelectorStyle:' + vm.device.SelectorStyle);
                 options.push('LevelOffHidden:' + vm.device.LevelOffHidden);
             }
-
             var params = {
                 type: 'setused',
                 name: vm.device.Name,
                 description: vm.device.Description,
-                strparam1: btoa(vm.device.StrParam1),
-                strparam2: btoa(vm.device.StrParam2),
+                strparam1: b64EncodeUnicode(vm.device.StrParam1),
+                strparam2: b64EncodeUnicode(vm.device.StrParam2),
                 protected: vm.device.Protected,
-                options: btoa(encodeURIComponent(options.join(';'))),
+                options: b64EncodeUnicode(options.join(';')),
                 addjvalue: vm.device.AddjValue,
                 addjvalue2: vm.device.AddjValue2,
                 customimage: vm.device.CustomImage,
@@ -547,39 +559,9 @@ define(['app'], function (app) {
                     return;
                 }
 
-                if (vm.device.IsSubDevice) {
-                    bootbox.confirm({
-                        message: [
-                            $.t('This device is used as a Sub/Slave device for other Devices.'),
-                            $.t('Do you want to remove this device from those devices too?')
-                        ].join('<br>'),
-                        buttons: {
-                            confirm: {
-                                label: $.t('Yes'),
-                                className: 'btn-default'
-                            },
-                            cancel: {
-                                label: $.t('No'),
-                                className: 'btn-default'
-                            }
-                        },
-                        callback: function (removeSubDevices) {
-                            deviceApi.updateDeviceInfo(vm.deviceIdx, {
-                                used: false,
-                                RemoveSubDevices: removeSubDevices
-                            }).then(function () {
-                                $window.history.back();
-                            });
-                        }
-                    })
-                } else {
-                    deviceApi.updateDeviceInfo(vm.deviceIdx, {
-                        used: false,
-                        RemoveSubDevices: false
-                    }).then(function () {
-                        $window.history.back();
-                    });
-                }
+                deviceApi.removeDevice(vm.deviceIdx).then(function() {
+                    $window.history.back();
+                });
             });
         }
 
@@ -600,11 +582,11 @@ define(['app'], function (app) {
         }
 
         function isOnDelayAvailable() {
-            return [0, 7, 9, 18].includes(vm.device.SwitchTypeVal);
+            return [0, 7, 9, 11, 18].includes(vm.device.SwitchTypeVal);
         }
 
         function isOffDelayAvailable() {
-            return [0, 7, 9, 18, 19, 20].includes(vm.device.SwitchTypeVal);
+            return [0, 7, 9, 11, 18, 19, 20].includes(vm.device.SwitchTypeVal);
         }
 
         function isSwitchIconAvailable() {
@@ -616,7 +598,7 @@ define(['app'], function (app) {
         }
 
         function isColorSettingsAvailable() {
-            return isLED(vm.device.SubType);
+            return vm.device.isLED();
         }
 
         function isWhiteSettingsAvailable() {

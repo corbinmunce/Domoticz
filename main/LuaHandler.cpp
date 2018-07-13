@@ -22,6 +22,7 @@ extern "C" {
 #include "SQLHelper.h"
 #include "mainworker.h"
 #include "../hardware/hardwaretypes.h"
+#include <boost/thread.hpp>
 
 extern std::string szUserDataFolder;
 
@@ -76,10 +77,6 @@ int CLuaHandler::l_domoticz_updateDevice(lua_State* lua_state)
 			int devType = atoi(dtype.c_str());
 			int subType = atoi(dsubtype.c_str());
 
-			std::stringstream sstr;
-			uint64_t ulIdx;
-			sstr << ideviceId;
-			sstr >> ulIdx;
 			m_mainworker.UpdateDevice(HardwareID, DeviceID, unit, devType, subType, invalue, svalue, signallevel, batterylevel);
 		}
 		else
@@ -188,7 +185,7 @@ bool CLuaHandler::executeLuaScript(const std::string &script, const std::string 
 	lua_setglobal(lua_state, "request");
 
 	CEventSystem::_tEventQueue item;
-	item.DeviceID = 0;
+	item.id = 0;
 	m_mainworker.m_eventsystem.ExportDeviceStatesToLua(lua_state, item);
 
 	// Push all url parameters as a map indexed by the parameter name

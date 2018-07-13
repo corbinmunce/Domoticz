@@ -14,6 +14,9 @@
 #include "../main/localtime_r.h"
 #include <sstream>
 #include <openssl/md5.h>
+#include <chrono>
+#include <limits.h>
+#include <cstring>
 
 #if defined WIN32
 #include "../msbuild/WindowsHelper.h"
@@ -24,6 +27,7 @@
 
 // Includes for SystemUptime()
 #if defined(__linux__) || defined(__linux) || defined(linux)
+#include <sys/time.h>
 #include <sys/sysinfo.h>
 #elif defined(macintosh) || defined(__APPLE__) || defined(__APPLE_CC__)
 #include <time.h>
@@ -48,16 +52,7 @@ void StringSplit(std::string str, const std::string &delim, std::vector<std::str
 	}
 }
 
-uint64_t strtoui64(std::string str)
-{
-	uint64_t ul;
-	std::stringstream ss;
-	ss << str;
-	ss >> ul;
-	return ul;
-}
-
-uint64_t hexstrtoui64(std::string str)
+uint64_t hexstrtoui64(const std::string &str)
 {
 	uint64_t ul;
 	std::stringstream ss;
@@ -85,6 +80,11 @@ void stdupper(std::string &inoutstring)
 		inoutstring[i] = toupper(inoutstring[i]);
 }
 
+void stdlower(std::string &inoutstring)
+{
+	std::transform(inoutstring.begin(), inoutstring.end(), inoutstring.begin(), ::tolower);
+}
+
 std::vector<std::string> GetSerialPorts(bool &bUseDirectPath)
 {
 	bUseDirectPath=false;
@@ -103,10 +103,9 @@ std::vector<std::string> GetSerialPorts(bool &bUseDirectPath)
 	if (!ports.empty())
 	{
 		bFoundPort = true;
-		std::vector<int>::const_iterator itt;
-		for (itt = ports.begin(); itt != ports.end(); ++itt)
+		for (const auto & itt : ports)
 		{
-			sprintf(szPortName, "COM%d", *itt);
+			sprintf(szPortName, "COM%d", itt);
 			ret.push_back(szPortName);
 		}
 	}
@@ -126,11 +125,10 @@ std::vector<std::string> GetSerialPorts(bool &bUseDirectPath)
 			sprintf(szPortName, "COM%d", ii);
 
 			//Check if we did not already have it
-			std::vector<std::string>::const_iterator itt;
 			bool bFound = false;
-			for (itt = ret.begin(); itt != ret.end(); ++itt)
+			for (const auto & itt : ret)
 			{
-				if (*itt == szPortName)
+				if (itt == szPortName)
 				{
 					bFound = true;
 					break;
@@ -175,10 +173,9 @@ std::vector<std::string> GetSerialPorts(bool &bUseDirectPath)
 		EnumSerialPortsWindows(serialports);
 		if (!serialports.empty())
 		{
-			std::vector<SerialPortInfo>::const_iterator itt;
-			for (itt = serialports.begin(); itt != serialports.end(); ++itt)
+			for (const auto & itt : serialports)
 			{
-				ret.push_back(itt->szPortName); // add port
+				ret.push_back(itt.szPortName); // add port
 			}
 		}
 	}
@@ -231,7 +228,7 @@ std::vector<std::string> GetSerialPorts(bool &bUseDirectPath)
 				bUseDirectPath = true;
 				ret.push_back("/dev/" + fname);
 			}
-#if defined (__FreeBSD__) || defined (__OpenBSD__)
+#if defined (__FreeBSD__) || defined (__OpenBSD__) || defined (__NetBSD__)
 			else if (fname.find("ttyU")!=std::string::npos)
 			{
 				bUseDirectPath=true;
@@ -430,20 +427,12 @@ bool isInt(const std::string &s)
 
 void sleep_seconds(const long seconds)
 {
-#if (BOOST_VERSION < 105000)
-	boost::this_thread::sleep(boost::posix_time::seconds(seconds));
-#else
-	boost::this_thread::sleep_for(boost::chrono::seconds(seconds));
-#endif
+	std::this_thread::sleep_for(std::chrono::seconds(seconds));
 }
 
 void sleep_milliseconds(const long milliseconds)
 {
-#if (BOOST_VERSION < 105000)
-	boost::this_thread::sleep(boost::posix_time::milliseconds(milliseconds));
-#else
-	boost::this_thread::sleep_for(boost::chrono::milliseconds(milliseconds));
-#endif
+	std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
 }
 
 int createdir(const char *szDirName, int secattr)
@@ -613,17 +602,21 @@ std::string TimeToString(const time_t *ltime, const _eTimeFormat format)
 #endif
 	}
 	else
-		localtime_r(&(*ltime), &timeinfo);
+		localtime_r(ltime, &timeinfo);
 
 	if (format > TF_Time)
 	{
+		//Date
 		sstr << (timeinfo.tm_year + 1900) << "-"
 		<< std::setw(2)	<< std::setfill('0') << (timeinfo.tm_mon + 1) << "-"
-		<< std::setw(2) << std::setfill('0') << timeinfo.tm_mday << " ";
+		<< std::setw(2) << std::setfill('0') << timeinfo.tm_mday;
 	}
 
 	if (format != TF_Date)
 	{
+		//Time
+		if (format > TF_Time)
+			sstr << " ";
 		sstr
 		<< std::setw(2) << std::setfill('0') << timeinfo.tm_hour << ":"
 		<< std::setw(2) << std::setfill('0') << timeinfo.tm_min << ":"
@@ -777,6 +770,7 @@ bool IsLightOrSwitch(const int devType, const int subType)
 	case pTypeRemote:
 	case pTypeGeneralSwitch:
 	case pTypeHomeConfort:
+	case pTypeFS20:
 		bIsLightSwitch = true;
 		break;
 	case pTypeRadiator1:
@@ -815,7 +809,7 @@ int MStoBeaufort(const float ms)
 	return 12;
 }
 
-bool dirent_is_directory(std::string dir, struct dirent *ent)
+bool dirent_is_directory(const std::string &dir, struct dirent *ent)
 {
 	if (ent->d_type == DT_DIR)
 		return true;
@@ -832,7 +826,7 @@ bool dirent_is_directory(std::string dir, struct dirent *ent)
 	return false;
 }
 
-bool dirent_is_file(std::string dir, struct dirent *ent)
+bool dirent_is_file(const std::string &dir, struct dirent *ent)
 {
 	if (ent->d_type == DT_REG)
 		return true;
@@ -1058,3 +1052,33 @@ int GenerateRandomNumber(const int range)
 	return (rand() / (RAND_MAX / range));
 }
 
+int GetDirFilesRecursive(const std::string &DirPath, std::map<std::string, int> &_Files)
+{
+	DIR* dir;
+	if ((dir = opendir(DirPath.c_str())) != NULL)
+	{
+		struct dirent *ent;
+		while ((ent = readdir(dir)) != NULL)
+		{
+			if (dirent_is_directory(DirPath, ent))
+			{
+				if ((strcmp(ent->d_name, ".") != 0) && (strcmp(ent->d_name, "..") != 0) && (strcmp(ent->d_name, ".svn") != 0))
+				{
+					std::string nextdir = DirPath + ent->d_name + "/";
+					if (GetDirFilesRecursive(nextdir.c_str(), _Files))
+					{
+						closedir(dir);
+						return 1;
+					}
+				}
+			}
+			else
+			{
+				std::string fname = DirPath + ent->d_name;
+				_Files[fname] = 1;
+			}
+		}
+	}
+	closedir(dir);
+	return 0;
+}

@@ -36,7 +36,7 @@ CRtl433::~CRtl433()
 
 bool CRtl433::StartHardware()
 {
-	m_thread = boost::shared_ptr<boost::thread>(new boost::thread(boost::bind(&CRtl433::Do_Work, this)));
+	m_thread = std::make_shared<std::thread>(&CRtl433::Do_Work, this);
 	m_bIsStarted = true;
 	sOnConnected(this);
 	StartHeartbeatThread();
@@ -49,6 +49,7 @@ bool CRtl433::StopHardware()
 	{
 		m_stoprequested = true;
 		m_thread->join();
+		m_thread.reset();
 	}
 
 	m_bIsStarted = false;
@@ -166,7 +167,7 @@ void CRtl433::Do_Work()
 				// load field values into a map
 				std::map<std::string, std::string> data;
 				std::vector<std::string>::iterator h = headers.begin();
-				for (std::vector<std::string>::iterator vi = values.begin(); vi != values.end(); vi++)
+				for (std::vector<std::string>::iterator vi = values.begin(); vi != values.end(); ++vi)
 				{
 					std::string header = *(h++);
 					data[header] = *vi;
@@ -317,7 +318,7 @@ void CRtl433::Do_Work()
 				{
 					bValidTempHum = !((tempC == 0) && (humidity == 0));
 				}
-				
+
 				bool bHaveSend = false;
 				if (hastempC && hashumidity && haspressure && bValidTempHum)
 				{
@@ -411,7 +412,7 @@ void CRtl433::Do_Work()
 				}
 				else
 				{
-					//Useful as some sensors will be skipped if temp is available  	
+					//Useful as some sensors will be skipped if temp is available
 					//_log.Log(LOG_NORM, "Rtl433: Raw Data: (%s)", line);
 				}
 			}

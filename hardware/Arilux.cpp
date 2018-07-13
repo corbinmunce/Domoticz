@@ -1,21 +1,16 @@
 #include "stdafx.h"
 #include "Arilux.h"
-#include "../main/Logger.h"
-#include "../main/Helper.h"
-#include "../main/SQLHelper.h"
-#include "../main/localtime_r.h"
 #include "../hardware/hardwaretypes.h"
+#include "../main/Helper.h"
+#include "../main/localtime_r.h"
+#include "../main/Logger.h"
 #include "../main/mainworker.h"
+#include "../main/SQLHelper.h"
 #include "../main/WebServer.h"
 #include "../webserver/cWebem.h"
 #include "../json/json.h"
 
 #include <numeric>
-#include <boost/array.hpp>
-#include <boost/asio.hpp>
-#include <boost/bind.hpp>
-
-
 
 /*
 Arilux AL-C0x is a Wifi LED Controller based on ESP8266.
@@ -50,9 +45,9 @@ bool Arilux::StartHardware()
 	m_bIsStarted = true;
 
 	//Start worker thread
-	m_thread = boost::shared_ptr<boost::thread>(new boost::thread(boost::bind(&Arilux::Do_Work, this)));
+	m_thread = std::make_shared<std::thread>(&Arilux::Do_Work, this);
 
-	return (m_thread != NULL);
+	return (m_thread != nullptr);
 }
 
 bool Arilux::StopHardware()
@@ -62,6 +57,7 @@ bool Arilux::StopHardware()
 		if (m_thread)
 		{
 			m_thread->join();
+			m_thread.reset();
 		}
 	}
 	catch (...)
@@ -78,7 +74,6 @@ void Arilux::Do_Work()
 {
 	_log.Log(LOG_STATUS, "Arilux Worker started...");
 
-	
 	int sec_counter = Arilux_POLL_INTERVAL - 5;
 	while (!m_stoprequested)
 	{
@@ -86,19 +81,19 @@ void Arilux::Do_Work()
 		sec_counter++;
 		if (sec_counter % 12 == 0) {
 			m_LastHeartbeat = mytime(NULL);
-		}		
+		}
 	}
 	_log.Log(LOG_STATUS, "Arilux stopped");
 }
 
 
-void Arilux::InsertUpdateSwitch(const std::string &nodeID, const std::string &lightName, const int &YeeType, const std::string &Location, const bool bIsOn, const std::string &ariluxBright, const std::string &ariluxHue)
+void Arilux::InsertUpdateSwitch(const std::string &/*nodeID*/, const std::string &lightName, const int &YeeType, const std::string &Location, const bool bIsOn, const std::string &ariluxBright, const std::string &/*ariluxHue*/)
 {
 	std::vector<std::string> ipaddress;
 	StringSplit(Location, ".", ipaddress);
 	if (ipaddress.size() != 4)
 	{
-		_log.Log(LOG_STATUS, "Arilux: Invalid location received! (No IP Address)");
+		_log.Log(LOG_ERROR, "Arilux: Invalid location received! (No IP Address)");
 		return;
 	}
 	uint32_t sID = (uint32_t)(atoi(ipaddress[0].c_str()) << 24) | (uint32_t)(atoi(ipaddress[1].c_str()) << 16) | (atoi(ipaddress[2].c_str()) << 8) | atoi(ipaddress[3].c_str());
@@ -111,7 +106,7 @@ void Arilux::InsertUpdateSwitch(const std::string &nodeID, const std::string &li
 	bool tIsOn = !(bIsOn);
 	std::vector<std::vector<std::string> > result;
 	result = m_sql.safe_query("SELECT nValue, LastLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Type==%d) AND (SubType==%d)", m_HwdID, szDeviceID, pTypeColorSwitch, YeeType);
-	if (result.size() < 1)
+	if (result.empty())
 	{
 		_log.Log(LOG_STATUS, "Arilux: New controller added (%s/%s)", Location.c_str(), lightName.c_str());
 		int value = atoi(ariluxBright.c_str());
@@ -122,11 +117,11 @@ void Arilux::InsertUpdateSwitch(const std::string &nodeID, const std::string &li
 			//level = 0;
 		}
 		_tColorSwitch ycmd;
-		ycmd.subtype = YeeType;
+		ycmd.subtype = (uint8_t)YeeType;
 		ycmd.id = sID;
 		ycmd.dunit = 0;
 		ycmd.value = value;
-		ycmd.command = cmd;
+		ycmd.command = (uint8_t)cmd;
 		m_mainworker.PushAndWaitRxMessage(this, (const unsigned char *)&ycmd, NULL, -1);
 		m_sql.safe_query("UPDATE DeviceStatus SET Name='%q', SwitchType=%d, LastLevel=%d WHERE(HardwareID == %d) AND (DeviceID == '%q')", lightName.c_str(), (STYPE_Dimmer), value, m_HwdID, szDeviceID);
 	}
@@ -146,11 +141,11 @@ void Arilux::InsertUpdateSwitch(const std::string &nodeID, const std::string &li
 				cmd = Color_SetBrightnessLevel;
 			}
 			_tColorSwitch ycmd;
-			ycmd.subtype = YeeType;
+			ycmd.subtype = (uint8_t)YeeType;
 			ycmd.id = sID;
 			ycmd.dunit = 0;
 			ycmd.value = value;
-			ycmd.command = cmd;
+			ycmd.command = (uint8_t)cmd;
 			m_mainworker.PushAndWaitRxMessage(this, (const unsigned char *)&ycmd, NULL, -1);
 		}
 	}
@@ -172,11 +167,10 @@ bool Arilux::SendTCPCommand(char ip[50],std::vector<unsigned char> &command)
 	boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
 
 
-	
-	
+
+
 	try
 	{
-		//_log.Log(LOG_STATUS, "Arilux: Try connecting device.");
 		boost::asio::connect(sendSocket, iterator);
 	}
 	catch (const std::exception &e)
@@ -187,7 +181,7 @@ bool Arilux::SendTCPCommand(char ip[50],std::vector<unsigned char> &command)
 
 	//_log.Log(LOG_STATUS, "Arilux: Connection OK");
 	sleep_milliseconds(50);
-	
+
 	boost::asio::write(sendSocket, boost::asio::buffer(command, command.size()));
 	//_log.Log(LOG_STATUS, "Arilux: Command sent");
 	sleep_milliseconds(50);
@@ -201,11 +195,11 @@ bool Arilux::SendTCPCommand(char ip[50],std::vector<unsigned char> &command)
 }
 
 
-bool Arilux::WriteToHardware(const char *pdata, const unsigned char length)
+bool Arilux::WriteToHardware(const char *pdata, const unsigned char /*length*/)
 {
-	_log.Log(LOG_STATUS, "Arilux: WriteToHardware...............................");
-	_tColorSwitch *pLed = (_tColorSwitch*)pdata;
-	uint8_t command = pLed->command;
+	_log.Debug(DEBUG_HARDWARE, "Arilux: WriteToHardware...............................");
+	const _tColorSwitch *pLed = reinterpret_cast<const _tColorSwitch*>(pdata);
+	//uint8_t command = pLed->command;
 	std::vector<std::vector<std::string> > result;
 
 	unsigned long lID;
@@ -240,23 +234,23 @@ bool Arilux::WriteToHardware(const char *pdata, const unsigned char length)
 	std::vector<unsigned char> Arilux_On_Command(Arilux_On_Command_Tab, Arilux_On_Command_Tab+sizeof(Arilux_On_Command_Tab)/sizeof(unsigned char));
 	std::vector<unsigned char> Arilux_Off_Command(Arilux_Off_Command_Tab, Arilux_Off_Command_Tab + sizeof(Arilux_Off_Command_Tab) / sizeof(unsigned char));
 	std::vector<unsigned char> Arilux_RGBCommand_Command(Arilux_RGBCommand_Command_Tab, Arilux_RGBCommand_Command_Tab + sizeof(Arilux_RGBCommand_Command_Tab) / sizeof(unsigned char));
-	
 
-	
+
+
 
 
 	std::vector<unsigned char> commandToSend;
-	
+
 	switch (pLed->command)
 	{
 	case Color_LedOn:
 		commandToSend = Arilux_On_Command;
-		
+
 		break;
 	case Color_LedOff:
-		commandToSend = Arilux_Off_Command;		
+		commandToSend = Arilux_Off_Command;
 		break;
-	
+
 	case Color_SetColorToWhite:
 		sendOnFirst = true;
 		m_isWhite = true;
@@ -265,7 +259,7 @@ bool Arilux::WriteToHardware(const char *pdata, const unsigned char length)
 		Arilux_RGBCommand_Command[3] = 0xff;
 		Arilux_RGBCommand_Command[4] = 0xff;
 		commandToSend = Arilux_RGBCommand_Command;
-		break;	
+		break;
 	case Color_SetColor:
 		if (pLed->color.mode == ColorModeWhite)
 		{
@@ -279,7 +273,7 @@ bool Arilux::WriteToHardware(const char *pdata, const unsigned char length)
 			m_color.b = pLed->color.b;
 		}
 		else {
-			_log.Log(LOG_STATUS, "Arilux: SetRGBColour - Color mode %d is unhandled, if you have a suggestion for what it should do, please post on the Domoticz forum", pLed->color.mode);
+			_log.Log(LOG_ERROR, "Arilux: SetRGBColour - Color mode %d is unhandled, if you have a suggestion for what it should do, please post on the Domoticz forum", pLed->color.mode);
 		}
 		// No break, fall through to send combined color + brightness command
 	case Color_SetBrightnessLevel: {
@@ -300,7 +294,7 @@ bool Arilux::WriteToHardware(const char *pdata, const unsigned char length)
 
 			commandToSend = Arilux_RGBCommand_Command;
 		}
-		else 
+		else
 		{
 			//_log.Log(LOG_NORM, "Red: %03d, Green:%03d, Blue:%03d, Brightness:%03d", red, green, blue, dMax_Send);
 
@@ -338,7 +332,7 @@ bool Arilux::WriteToHardware(const char *pdata, const unsigned char length)
 		_log.Log(LOG_STATUS, "Arilux: DiscoSpeedFasterLong - This command is unhandled, if you have a suggestion for what it should do, please post on the Domoticz forum");
 		break;
 	default:
-		
+
 		break;
 	}
 
@@ -346,28 +340,28 @@ bool Arilux::WriteToHardware(const char *pdata, const unsigned char length)
 	if (commandToSend.empty())return false; //No command to send
 
 
-	
 
-	
+
+
 
 
 	bool returnValue = false;
 
 
-	if (sendOnFirst) 
+	if (sendOnFirst)
 	{
 		returnValue= SendTCPCommand(ipAddress,Arilux_On_Command);
 	}
 
 	returnValue= SendTCPCommand(ipAddress,commandToSend);
-	
+
 	return returnValue;
 }
 
 //Webserver helpers
 namespace http {
 	namespace server {
-		void CWebServer::Cmd_AddArilux(WebEmSession & session, const request& req, Json::Value &root)
+		void CWebServer::Cmd_AddArilux(WebEmSession & /*session*/, const request& req, Json::Value &root)
 		{
 			root["title"] = "AddArilux";
 

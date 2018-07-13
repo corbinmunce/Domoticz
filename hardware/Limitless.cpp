@@ -188,33 +188,15 @@ bool CLimitLess::AddSwitchIfNotExits(const unsigned char Unit, const std::string
 		result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (Unit==%d) AND (Type==%d) AND (SubType==%d)", m_HwdID, int(Unit), pTypeColorSwitch, int(m_LEDType));
 		if (result.empty())
 		{
-			m_sql.safe_query(
-					"INSERT INTO DeviceStatus (HardwareID, DeviceID, Unit, Type, SubType, SignalLevel, BatteryLevel, Name, nValue, sValue) "
-					"VALUES (%d,'%d',%d,%d,%d,12,255,'%q',0,' ')",
-					m_HwdID, int(1), int(Unit), pTypeColorSwitch, int(m_LEDType), devname.c_str());
-			result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (Unit==%d) AND (Type==%d) AND (SubType==%d)", m_HwdID, int(Unit), pTypeColorSwitch, int(m_LEDType));
-			if (!result.empty())
-			{
-				//Set type to dimmer
-				m_sql.safe_query("UPDATE DeviceStatus SET SwitchType=%d WHERE (ID==%q)", STYPE_Dimmer, result[0][0].c_str());
-			}
+			m_sql.InsertDevice(m_HwdID, "1", Unit, pTypeColorSwitch, m_LEDType, STYPE_Dimmer, 0, " ", devname);
 			return false;
 		}
 	}
-	else if (Unit == 5) {
+	else {
 		result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (Unit==%d) AND (Type==%d) AND (SubType==%d)", m_HwdID, int(Unit), pTypeColorSwitch, sTypeColor_RGB_CW_WW);
 		if (result.empty())
 		{
-			m_sql.safe_query(
-					"INSERT INTO DeviceStatus (HardwareID, DeviceID, Unit, Type, SubType, SignalLevel, BatteryLevel, Name, nValue, sValue) "
-					"VALUES (%d,'%d',%d,%d,%d,12,255,'%q',0,' ')",
-					m_HwdID, int(1), int(Unit), pTypeColorSwitch, sTypeColor_RGB_CW_WW, devname.c_str());
-			result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (Unit==%d) AND (Type==%d) AND (SubType==%d)", m_HwdID, int(Unit), pTypeColorSwitch, sTypeColor_RGB_CW_WW);
-			if (!result.empty())
-			{
-				//Set type to dimmer
-				m_sql.safe_query("UPDATE DeviceStatus SET SwitchType=%d WHERE (ID==%q)", STYPE_Dimmer, result[0][0].c_str());
-			}
+			m_sql.InsertDevice(m_HwdID, "1", Unit, pTypeColorSwitch, sTypeColor_RGB_CW_WW, STYPE_Dimmer, 0, " ", devname);
 			return false;
 		}
 	}
@@ -247,7 +229,7 @@ bool CLimitLess::StartHardware()
 
 	memset(&m_stRemoteDestAddr,0,sizeof(m_stRemoteDestAddr));
 	//m_stRemoteDestAddr.sin_family = AF_UNSPEC;
-	//m_stRemoteDestAddr.sin_family = PF_INET; 
+	//m_stRemoteDestAddr.sin_family = PF_INET;
 	m_stRemoteDestAddr.sin_family = AF_INET;     // host byte order
 	m_stRemoteDestAddr.sin_port = htons(m_usIPPort); // short, network byte order
 	m_stRemoteDestAddr.sin_addr = *((struct in_addr *)he->h_addr);
@@ -280,9 +262,9 @@ bool CLimitLess::StartHardware()
 	m_bIsStarted=true;
 	sOnConnected(this);
 	//Start worker thread
-	m_thread = boost::shared_ptr<boost::thread>(new boost::thread(boost::bind(&CLimitLess::Do_Work, this)));
+	m_thread = std::make_shared<std::thread>(&CLimitLess::Do_Work, this);
 	_log.Log(LOG_STATUS, "AppLamp: Worker Started...");
-	return (m_thread!=NULL);
+	return (m_thread != nullptr);
 }
 
 bool CLimitLess::IsDataAvailable(const SOCKET sock)
@@ -434,11 +416,11 @@ bool CLimitLess::SendV6Command(const uint8_t *pCmd)
 
 bool CLimitLess::StopHardware()
 {
-	if (m_thread!=NULL)
+	if (m_thread)
 	{
-		assert(m_thread);
 		m_stoprequested = true;
 		m_thread->join();
+		m_thread.reset();
 	}
     if (m_RemoteSocket!=INVALID_SOCKET)
 	{
@@ -524,7 +506,7 @@ void CLimitLess::Send_V4V5_RGBW_On(const uint8_t dunit, const long delay)
 
 bool CLimitLess::WriteToHardware(const char *pdata, const unsigned char length)
 {
-	_tColorSwitch *pLed=(_tColorSwitch*)pdata;
+	const _tColorSwitch *pLed = reinterpret_cast<const _tColorSwitch*>(pdata);
 	unsigned char *pCMD=NULL;
 
 	if (m_BridgeType == LBTYPE_V6)
@@ -1445,7 +1427,7 @@ namespace http {
 			std::vector<std::vector<std::string> > result;
 
 			result = m_sql.safe_query("SELECT Mode1, Mode2, Mode3, Mode4, Mode5, Mode6 FROM Hardware WHERE (ID='%q')", idx.c_str());
-			if (result.size() < 1)
+			if (result.empty())
 				return;
 
 			int Mode1 = atoi(request::findValue(&req, "LimitlessType").c_str());
